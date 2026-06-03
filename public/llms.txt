@@ -1,0 +1,8 @@
+# GeniusNet
+
+> GeniusNet provides IT services, cybersecurity, infrastructure and Entersoft ERP solutions, plus a customer portal for managing contracts, Microsoft 365 / Copilot licenses, Azure AD devices and support tickets.
+
+## Pages
+
+- [Marketing site](/site): Overview of GeniusNet's IT, Cybersecurity, Infrastructure and Entersoft ERP services.
+- [Customer portal login](/login): Sign in to the GeniusNet Customer Portal.
