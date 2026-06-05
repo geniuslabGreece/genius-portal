@@ -46,7 +46,14 @@ const navItems: Array<{
   adminOnly?: boolean;
   customerAdminOnly?: boolean;
 }> = [
+  { to: "/portal", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/portal/assistant", label: "AI Σύμβουλος", icon: Sparkles },
+  { to: "/portal/software", label: "Software", icon: Package, category: "software" },
+  { to: "/portal/hardware", label: "Hardware", icon: Server, category: "hardware" },
+  { to: "/portal/erp", label: "ERP", icon: Briefcase, category: "erp" },
+  { to: "/portal/devices", label: "Devices", icon: Smartphone, category: "devices" },
+  { to: "/portal/support", label: "Υποστήριξη", icon: LifeBuoy },
+  { to: "/portal/org-admin", label: "Διαχείριση οργανισμού", icon: Building2, customerAdminOnly: true },
   { to: "/portal/admin", label: "Admin", icon: ShieldCheck, adminOnly: true },
 ];
 
