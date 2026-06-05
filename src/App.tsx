@@ -46,10 +46,10 @@ const App = () => (
               <Route path="account" element={<Account />} />
               <Route path="contracts" element={<CategoryView />} />
               <Route path="contracts/:contractId" element={<ContractDetail />} />
-              <Route path="software" element={<CategoryView />} />
-              <Route path="hardware" element={<CategoryView />} />
-              <Route path="erp" element={<CategoryView />} />
-              <Route path="devices" element={<CategoryView />} />
+              <Route path="software" element={<CategoryView category="software" title="Software" />} />
+              <Route path="hardware" element={<CategoryView category="hardware" title="Hardware" />} />
+              <Route path="erp" element={<CategoryView category="erp" title="ERP" />} />
+              <Route path="devices" element={<CategoryView category="devices" title="Devices" />} />
               <Route path="support" element={<Support />} />
               <Route path="support/:ticketId" element={<TicketDetail />} />
               <Route
