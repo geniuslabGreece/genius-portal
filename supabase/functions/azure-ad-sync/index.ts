@@ -381,12 +381,37 @@ Deno.serve(async (req) => {
     const usersUrl = "https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName,jobTitle,accountEnabled&$top=200";
     const devicesUrl = "https://graph.microsoft.com/v1.0/devices?$select=id,displayName,operatingSystem,operatingSystemVersion,trustType,registrationDateTime,approximateLastSignInDateTime,isCompliant,isManaged,accountEnabled&$top=200";
     const skusUrl = "https://graph.microsoft.com/v1.0/subscribedSkus";
+    const groupsUrl = "https://graph.microsoft.com/v1.0/groups?$select=id,displayName,description,securityEnabled,mailEnabled&$top=200";
 
-    const [users, devices, skus] = await Promise.all([
+    const [users, devices, skus, groups] = await Promise.all([
       graphGetAll(usersUrl, token),
       graphGetAll(devicesUrl, token),
       graphGetAll(skusUrl, token),
+      graphGetAll(groupsUrl, token),
     ]);
+
+    // Group memberships: map[azureUserId] → groupIds[]
+    const userGroupMap = new Map<string, string[]>();
+    const groupMemberCount = new Map<string, number>();
+    for (let i = 0; i < groups.length; i += 10) {
+      const slice = groups.slice(i, i + 10);
+      await Promise.all(slice.map(async (g: any) => {
+        try {
+          const members = await graphGetAll(
+            `https://graph.microsoft.com/v1.0/groups/${g.id}/members/microsoft.graph.user?$select=id&$top=999`,
+            token,
+          );
+          groupMemberCount.set(g.id, members.length);
+          for (const m of members) {
+            const arr = userGroupMap.get(m.id) ?? [];
+            arr.push(g.id);
+            userGroupMap.set(m.id, arr);
+          }
+        } catch (e) {
+          console.warn(`Group ${g.id} members fetch failed:`, e);
+        }
+      }));
+    }
 
     const now = new Date().toISOString();
 
@@ -401,9 +426,27 @@ Deno.serve(async (req) => {
         user_principal_name: u.userPrincipalName,
         job_title: u.jobTitle,
         account_enabled: u.accountEnabled,
+        azure_group_ids: userGroupMap.get(u.id) ?? [],
         last_synced_at: now,
       }));
       const { error } = await admin.from("customer_azure_ad_users").insert(rows);
+      if (error) throw error;
+    }
+
+    // Replace groups cache
+    await admin.from("customer_azure_ad_groups").delete().eq("customer_id", body.customer_id);
+    if (groups.length) {
+      const grows = groups.map((g: any) => ({
+        customer_id: body.customer_id,
+        azure_group_id: g.id,
+        display_name: g.displayName,
+        description: g.description,
+        mail_enabled: !!g.mailEnabled,
+        security_enabled: !!g.securityEnabled,
+        member_count: groupMemberCount.get(g.id) ?? 0,
+        last_synced_at: now,
+      }));
+      const { error } = await admin.from("customer_azure_ad_groups").insert(grows);
       if (error) throw error;
     }
 
