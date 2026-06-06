@@ -312,7 +312,7 @@ export default function AzureAdPanel({ customerId }: Props) {
 
       <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
         <strong>Απαιτούμενα Application permissions στο Microsoft Entra app:</strong>{" "}
-        <code>User.Read.All</code>, <code>Device.Read.All</code>, <code>Directory.Read.All</code> (admin consent).
+        <code>User.Read.All</code>, <code>Group.Read.All</code>, <code>Device.Read.All</code>, <code>Directory.Read.All</code> (admin consent).
         Για Copilot usage analytics απαιτείται επιπλέον το <code>Reports.Read.All</code>.
       </div>
 
