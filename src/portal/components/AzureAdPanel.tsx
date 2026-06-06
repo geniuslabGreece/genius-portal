@@ -391,6 +391,9 @@ export default function AzureAdPanel({ customerId }: Props) {
             </table>
           </div>
         </TabsContent>
+        <TabsContent value="roles" className="mt-4">
+          <AzureGroupRoleMappings customerId={customerId} />
+        </TabsContent>
         <TabsContent value="devices" className="mt-4">
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
