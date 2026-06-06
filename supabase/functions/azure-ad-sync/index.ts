@@ -381,12 +381,37 @@ Deno.serve(async (req) => {
     const usersUrl = "https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName,jobTitle,accountEnabled&$top=200";
     const devicesUrl = "https://graph.microsoft.com/v1.0/devices?$select=id,displayName,operatingSystem,operatingSystemVersion,trustType,registrationDateTime,approximateLastSignInDateTime,isCompliant,isManaged,accountEnabled&$top=200";
     const skusUrl = "https://graph.microsoft.com/v1.0/subscribedSkus";
+    const groupsUrl = "https://graph.microsoft.com/v1.0/groups?$select=id,displayName,description,securityEnabled,mailEnabled&$top=200";
 
-    const [users, devices, skus] = await Promise.all([
+    const [users, devices, skus, groups] = await Promise.all([
       graphGetAll(usersUrl, token),
       graphGetAll(devicesUrl, token),
       graphGetAll(skusUrl, token),
+      graphGetAll(groupsUrl, token),
     ]);
+
+    // Group memberships: map[azureUserId] → groupIds[]
+    const userGroupMap = new Map<string, string[]>();
+    const groupMemberCount = new Map<string, number>();
+    for (let i = 0; i < groups.length; i += 10) {
+      const slice = groups.slice(i, i + 10);
+      await Promise.all(slice.map(async (g: any) => {
+        try {
+          const members = await graphGetAll(
+            `https://graph.microsoft.com/v1.0/groups/${g.id}/members/microsoft.graph.user?$select=id&$top=999`,
+            token,
+          );
+          groupMemberCount.set(g.id, members.length);
+          for (const m of members) {
+            const arr = userGroupMap.get(m.id) ?? [];
+            arr.push(g.id);
+            userGroupMap.set(m.id, arr);
+          }
+        } catch (e) {
+          console.warn(`Group ${g.id} members fetch failed:`, e);
+        }
+      }));
+    }
 
     const now = new Date().toISOString();
 
@@ -401,9 +426,27 @@ Deno.serve(async (req) => {
         user_principal_name: u.userPrincipalName,
         job_title: u.jobTitle,
         account_enabled: u.accountEnabled,
+        azure_group_ids: userGroupMap.get(u.id) ?? [],
         last_synced_at: now,
       }));
       const { error } = await admin.from("customer_azure_ad_users").insert(rows);
+      if (error) throw error;
+    }
+
+    // Replace groups cache
+    await admin.from("customer_azure_ad_groups").delete().eq("customer_id", body.customer_id);
+    if (groups.length) {
+      const grows = groups.map((g: any) => ({
+        customer_id: body.customer_id,
+        azure_group_id: g.id,
+        display_name: g.displayName,
+        description: g.description,
+        mail_enabled: !!g.mailEnabled,
+        security_enabled: !!g.securityEnabled,
+        member_count: groupMemberCount.get(g.id) ?? 0,
+        last_synced_at: now,
+      }));
+      const { error } = await admin.from("customer_azure_ad_groups").insert(grows);
       if (error) throw error;
     }
 
@@ -476,6 +519,82 @@ Deno.serve(async (req) => {
       if (error) throw error;
     }
 
+    // ─────────────────────────────────────────────────────────
+    // APPLY ROLE MAPPINGS: για κάθε Azure group με mapping,
+    // βρίσκουμε τα profiles που ταιριάζουν με τους Azure users
+    // του group και ενημερώνουμε user_roles + user_customer_admins.
+    // ─────────────────────────────────────────────────────────
+    let rolesApplied = 0;
+    try {
+      const { data: mappings } = await admin
+        .from("customer_azure_ad_role_mappings")
+        .select("azure_group_id, role")
+        .eq("customer_id", body.customer_id);
+
+      if (mappings && mappings.length) {
+        // Συλλέγω emails ανά group από τους synced users
+        const emailsByGroup = new Map<string, string[]>();
+        for (const u of users) {
+          const email = (u.mail ?? u.userPrincipalName ?? "").toLowerCase();
+          if (!email) continue;
+          const userGroups = userGroupMap.get(u.id) ?? [];
+          for (const gid of userGroups) {
+            const arr = emailsByGroup.get(gid) ?? [];
+            arr.push(email);
+            emailsByGroup.set(gid, arr);
+          }
+        }
+
+        // Όλα τα emails που χρειάζονται resolution
+        const allEmails = Array.from(new Set(Array.from(emailsByGroup.values()).flat()));
+        if (allEmails.length) {
+          const { data: profs } = await admin
+            .from("profiles")
+            .select("id, email, customer_id")
+            .in("email", allEmails);
+          const profileByEmail = new Map<string, { id: string; customer_id: string | null }>();
+          for (const p of (profs ?? [])) {
+            profileByEmail.set(String(p.email).toLowerCase(), { id: p.id, customer_id: p.customer_id });
+          }
+
+          // userId → set ρόλων που πρέπει να έχει βάσει mappings
+          const userTargetRoles = new Map<string, Set<string>>();
+          for (const m of mappings) {
+            const emails = emailsByGroup.get(m.azure_group_id) ?? [];
+            for (const e of emails) {
+              const prof = profileByEmail.get(e);
+              if (!prof) continue;
+              // ασφάλεια: εφαρμόζουμε ρόλο μόνο σε profiles του ίδιου customer
+              if (prof.customer_id && prof.customer_id !== body.customer_id) continue;
+              const s = userTargetRoles.get(prof.id) ?? new Set<string>();
+              s.add(m.role);
+              userTargetRoles.set(prof.id, s);
+            }
+          }
+
+          for (const [uid, roleSet] of userTargetRoles.entries()) {
+            const rolesArr = Array.from(roleSet);
+            // upsert ρόλων
+            const inserts = rolesArr.map((role) => ({ user_id: uid, role }));
+            if (inserts.length) {
+              const { error: rerr } = await admin
+                .from("user_roles")
+                .upsert(inserts, { onConflict: "user_id,role", ignoreDuplicates: true });
+              if (!rerr) rolesApplied += inserts.length;
+            }
+            // αν είναι customer_admin → καταχωρώ και στο mapping table
+            if (roleSet.has("customer_admin")) {
+              await admin
+                .from("user_customer_admins")
+                .upsert({ user_id: uid, customer_id: body.customer_id }, { onConflict: "user_id,customer_id", ignoreDuplicates: true });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Role mapping apply failed:", e);
+    }
+
     await admin
       .from("customer_azure_ad_settings")
       .update({ last_sync_at: now, last_sync_error: null })
@@ -492,7 +611,14 @@ Deno.serve(async (req) => {
       triggered_by: user.id,
     });
 
-    return new Response(JSON.stringify({ ok: true, users: users.length, devices: devices.length, licenses: skus.length }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      users: users.length,
+      devices: devices.length,
+      licenses: skus.length,
+      groups: groups.length,
+      roles_applied: rolesApplied,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {

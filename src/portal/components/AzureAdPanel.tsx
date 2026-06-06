@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Cloud, Save, RefreshCw, CheckCircle2, AlertCircle, Loader2, Users, Laptop, History, XCircle, KeyRound, Briefcase, Sparkles } from "lucide-react";
+import { Cloud, Save, RefreshCw, CheckCircle2, AlertCircle, Loader2, Users, Laptop, History, XCircle, KeyRound, Briefcase, Sparkles, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import AzureGroupRoleMappings from "./AzureGroupRoleMappings";
 
 interface Props {
   customerId: string;
@@ -311,7 +312,7 @@ export default function AzureAdPanel({ customerId }: Props) {
 
       <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
         <strong>Απαιτούμενα Application permissions στο Microsoft Entra app:</strong>{" "}
-        <code>User.Read.All</code>, <code>Device.Read.All</code>, <code>Directory.Read.All</code> (admin consent).
+        <code>User.Read.All</code>, <code>Group.Read.All</code>, <code>Device.Read.All</code>, <code>Directory.Read.All</code> (admin consent).
         Για Copilot usage analytics απαιτείται επιπλέον το <code>Reports.Read.All</code>.
       </div>
 
@@ -348,8 +349,9 @@ export default function AzureAdPanel({ customerId }: Props) {
       </div>
 
       <Tabs defaultValue="users" className="pt-2">
-        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-flex md:grid-cols-6">
+        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-flex md:grid-cols-7">
           <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" />Χρήστες ({users.length})</TabsTrigger>
+          <TabsTrigger value="roles" className="gap-2"><ShieldCheck className="h-4 w-4" />Ρόλοι</TabsTrigger>
           <TabsTrigger value="cals" className="gap-2"><Briefcase className="h-4 w-4" />Office CALs ({officeLicenses.length})</TabsTrigger>
           <TabsTrigger value="devices" className="gap-2"><Laptop className="h-4 w-4" />Συσκευές ({devices.length})</TabsTrigger>
           <TabsTrigger value="licenses" className="gap-2"><KeyRound className="h-4 w-4" />Άδειες ({otherLicenses.length})</TabsTrigger>
@@ -388,6 +390,9 @@ export default function AzureAdPanel({ customerId }: Props) {
               </tbody>
             </table>
           </div>
+        </TabsContent>
+        <TabsContent value="roles" className="mt-4">
+          <AzureGroupRoleMappings customerId={customerId} />
         </TabsContent>
         <TabsContent value="devices" className="mt-4">
           <div className="overflow-x-auto rounded-lg border border-border">
