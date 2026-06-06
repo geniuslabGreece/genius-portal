@@ -139,6 +139,56 @@ export type Database = {
           },
         ]
       }
+      customer_azure_ad_groups: {
+        Row: {
+          azure_group_id: string
+          created_at: string
+          customer_id: string
+          description: string | null
+          display_name: string | null
+          id: string
+          last_synced_at: string | null
+          mail_enabled: boolean | null
+          member_count: number | null
+          security_enabled: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          azure_group_id: string
+          created_at?: string
+          customer_id: string
+          description?: string | null
+          display_name?: string | null
+          id?: string
+          last_synced_at?: string | null
+          mail_enabled?: boolean | null
+          member_count?: number | null
+          security_enabled?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          azure_group_id?: string
+          created_at?: string
+          customer_id?: string
+          description?: string | null
+          display_name?: string | null
+          id?: string
+          last_synced_at?: string | null
+          mail_enabled?: boolean | null
+          member_count?: number | null
+          security_enabled?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_azure_ad_groups_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_azure_ad_licenses: {
         Row: {
           applies_to: string | null
@@ -183,6 +233,47 @@ export type Database = {
           sku_part_number?: string | null
         }
         Relationships: []
+      }
+      customer_azure_ad_role_mappings: {
+        Row: {
+          azure_group_id: string
+          azure_group_name: string | null
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+        }
+        Insert: {
+          azure_group_id: string
+          azure_group_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Update: {
+          azure_group_id?: string
+          azure_group_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_azure_ad_role_mappings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       customer_azure_ad_settings: {
         Row: {
@@ -279,6 +370,7 @@ export type Database = {
       customer_azure_ad_users: {
         Row: {
           account_enabled: boolean | null
+          azure_group_ids: string[] | null
           azure_object_id: string
           customer_id: string
           display_name: string | null
@@ -290,6 +382,7 @@ export type Database = {
         }
         Insert: {
           account_enabled?: boolean | null
+          azure_group_ids?: string[] | null
           azure_object_id: string
           customer_id: string
           display_name?: string | null
@@ -301,6 +394,7 @@ export type Database = {
         }
         Update: {
           account_enabled?: boolean | null
+          azure_group_ids?: string[] | null
           azure_object_id?: string
           customer_id?: string
           display_name?: string | null
