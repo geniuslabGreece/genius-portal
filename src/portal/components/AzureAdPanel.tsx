@@ -349,8 +349,9 @@ export default function AzureAdPanel({ customerId }: Props) {
       </div>
 
       <Tabs defaultValue="users" className="pt-2">
-        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-flex md:grid-cols-6">
+        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-flex md:grid-cols-7">
           <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" />Χρήστες ({users.length})</TabsTrigger>
+          <TabsTrigger value="roles" className="gap-2"><ShieldCheck className="h-4 w-4" />Ρόλοι</TabsTrigger>
           <TabsTrigger value="cals" className="gap-2"><Briefcase className="h-4 w-4" />Office CALs ({officeLicenses.length})</TabsTrigger>
           <TabsTrigger value="devices" className="gap-2"><Laptop className="h-4 w-4" />Συσκευές ({devices.length})</TabsTrigger>
           <TabsTrigger value="licenses" className="gap-2"><KeyRound className="h-4 w-4" />Άδειες ({otherLicenses.length})</TabsTrigger>
