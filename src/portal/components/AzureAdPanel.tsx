@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Cloud, Save, RefreshCw, CheckCircle2, AlertCircle, Loader2, Users, Laptop, History, XCircle, KeyRound, Briefcase, Sparkles } from "lucide-react";
+import { Cloud, Save, RefreshCw, CheckCircle2, AlertCircle, Loader2, Users, Laptop, History, XCircle, KeyRound, Briefcase, Sparkles, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import AzureGroupRoleMappings from "./AzureGroupRoleMappings";
 
 interface Props {
   customerId: string;
