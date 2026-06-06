@@ -519,6 +519,82 @@ Deno.serve(async (req) => {
       if (error) throw error;
     }
 
+    // ─────────────────────────────────────────────────────────
+    // APPLY ROLE MAPPINGS: για κάθε Azure group με mapping,
+    // βρίσκουμε τα profiles που ταιριάζουν με τους Azure users
+    // του group και ενημερώνουμε user_roles + user_customer_admins.
+    // ─────────────────────────────────────────────────────────
+    let rolesApplied = 0;
+    try {
+      const { data: mappings } = await admin
+        .from("customer_azure_ad_role_mappings")
+        .select("azure_group_id, role")
+        .eq("customer_id", body.customer_id);
+
+      if (mappings && mappings.length) {
+        // Συλλέγω emails ανά group από τους synced users
+        const emailsByGroup = new Map<string, string[]>();
+        for (const u of users) {
+          const email = (u.mail ?? u.userPrincipalName ?? "").toLowerCase();
+          if (!email) continue;
+          const userGroups = userGroupMap.get(u.id) ?? [];
+          for (const gid of userGroups) {
+            const arr = emailsByGroup.get(gid) ?? [];
+            arr.push(email);
+            emailsByGroup.set(gid, arr);
+          }
+        }
+
+        // Όλα τα emails που χρειάζονται resolution
+        const allEmails = Array.from(new Set(Array.from(emailsByGroup.values()).flat()));
+        if (allEmails.length) {
+          const { data: profs } = await admin
+            .from("profiles")
+            .select("id, email, customer_id")
+            .in("email", allEmails);
+          const profileByEmail = new Map<string, { id: string; customer_id: string | null }>();
+          for (const p of (profs ?? [])) {
+            profileByEmail.set(String(p.email).toLowerCase(), { id: p.id, customer_id: p.customer_id });
+          }
+
+          // userId → set ρόλων που πρέπει να έχει βάσει mappings
+          const userTargetRoles = new Map<string, Set<string>>();
+          for (const m of mappings) {
+            const emails = emailsByGroup.get(m.azure_group_id) ?? [];
+            for (const e of emails) {
+              const prof = profileByEmail.get(e);
+              if (!prof) continue;
+              // ασφάλεια: εφαρμόζουμε ρόλο μόνο σε profiles του ίδιου customer
+              if (prof.customer_id && prof.customer_id !== body.customer_id) continue;
+              const s = userTargetRoles.get(prof.id) ?? new Set<string>();
+              s.add(m.role);
+              userTargetRoles.set(prof.id, s);
+            }
+          }
+
+          for (const [uid, roleSet] of userTargetRoles.entries()) {
+            const rolesArr = Array.from(roleSet);
+            // upsert ρόλων
+            const inserts = rolesArr.map((role) => ({ user_id: uid, role }));
+            if (inserts.length) {
+              const { error: rerr } = await admin
+                .from("user_roles")
+                .upsert(inserts, { onConflict: "user_id,role", ignoreDuplicates: true });
+              if (!rerr) rolesApplied += inserts.length;
+            }
+            // αν είναι customer_admin → καταχωρώ και στο mapping table
+            if (roleSet.has("customer_admin")) {
+              await admin
+                .from("user_customer_admins")
+                .upsert({ user_id: uid, customer_id: body.customer_id }, { onConflict: "user_id,customer_id", ignoreDuplicates: true });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Role mapping apply failed:", e);
+    }
+
     await admin
       .from("customer_azure_ad_settings")
       .update({ last_sync_at: now, last_sync_error: null })
@@ -535,7 +611,14 @@ Deno.serve(async (req) => {
       triggered_by: user.id,
     });
 
-    return new Response(JSON.stringify({ ok: true, users: users.length, devices: devices.length, licenses: skus.length }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      users: users.length,
+      devices: devices.length,
+      licenses: skus.length,
+      groups: groups.length,
+      roles_applied: rolesApplied,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
