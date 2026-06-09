@@ -20,6 +20,7 @@ import { ProductsPanel } from "@/portal/components/ProductsPanel";
 import { AdminTicketsPanel } from "@/portal/components/AdminTicketsPanel";
 import { MailServerSettingsPanel } from "@/portal/components/MailServerSettingsPanel";
 import { AdminAzureAdPanel } from "@/portal/components/AdminAzureAdPanel";
+import { UserRolesPanel } from "@/portal/components/UserRolesPanel";
 
 interface CustomerForm {
   name: string;
@@ -234,6 +235,7 @@ export default function Admin() {
           <TabsTrigger value="customers">Πελάτες</TabsTrigger>
           <TabsTrigger value="users"><Users className="mr-1.5 h-3.5 w-3.5" />Χρήστες</TabsTrigger>
           <TabsTrigger value="customer-admins"><ShieldCheck className="mr-1.5 h-3.5 w-3.5" />Customer Admins</TabsTrigger>
+          <TabsTrigger value="roles"><ShieldCheck className="mr-1.5 h-3.5 w-3.5" />Ρόλοι</TabsTrigger>
           <TabsTrigger value="products"><FileText className="mr-1.5 h-3.5 w-3.5" />Προϊόντα</TabsTrigger>
           <TabsTrigger value="tickets"><LifeBuoy className="mr-1.5 h-3.5 w-3.5" />Tickets</TabsTrigger>
           <TabsTrigger value="softone"><Plug className="mr-1.5 h-3.5 w-3.5" />SoftOne ERP</TabsTrigger>
@@ -340,6 +342,10 @@ export default function Admin() {
 
         <TabsContent value="customer-admins" className="mt-4">
           <CustomerAdminAssignments />
+        </TabsContent>
+
+        <TabsContent value="roles" className="mt-4">
+          <UserRolesPanel />
         </TabsContent>
 
         <TabsContent value="products" className="mt-4">
