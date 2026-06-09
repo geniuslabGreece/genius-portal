@@ -45,6 +45,7 @@ const App = () => (
               <Route index element={<Dashboard />} />
               <Route path="assistant" element={<Assistant />} />
               <Route path="account" element={<Account />} />
+              <Route path="my-roles" element={<MyRoles />} />
               <Route path="contracts" element={<CategoryView />} />
               <Route path="contracts/:contractId" element={<ContractDetail />} />
               <Route path="software" element={<CategoryView category="software" title="Software" />} />
