@@ -11,6 +11,7 @@ import Dashboard from "./portal/pages/Dashboard.tsx";
 import Admin from "./portal/pages/Admin.tsx";
 import Assistant from "./portal/pages/Assistant.tsx";
 import Account from "./portal/pages/Account.tsx";
+import MyRoles from "./portal/pages/MyRoles.tsx";
 import CategoryView from "./portal/pages/CategoryView.tsx";
 import ContractDetail from "./portal/pages/ContractDetail.tsx";
 import CustomerContracts from "./portal/pages/CustomerContracts.tsx";
@@ -44,6 +45,7 @@ const App = () => (
               <Route index element={<Dashboard />} />
               <Route path="assistant" element={<Assistant />} />
               <Route path="account" element={<Account />} />
+              <Route path="my-roles" element={<MyRoles />} />
               <Route path="contracts" element={<CategoryView />} />
               <Route path="contracts/:contractId" element={<ContractDetail />} />
               <Route path="software" element={<CategoryView category="software" title="Software" />} />

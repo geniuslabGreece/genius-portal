@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Building2,
   User,
+  KeyRound,
   LifeBuoy,
   Sparkles,
 } from "lucide-react";
@@ -53,6 +54,7 @@ const navItems: Array<{
   { to: "/portal/erp", label: "ERP", icon: Briefcase, category: "erp" },
   { to: "/portal/devices", label: "Devices", icon: Smartphone, category: "devices" },
   { to: "/portal/support", label: "Υποστήριξη", icon: LifeBuoy },
+  { to: "/portal/my-roles", label: "Οι ρόλοι μου", icon: KeyRound },
   { to: "/portal/org-admin", label: "Διαχείριση οργανισμού", icon: Building2, customerAdminOnly: true },
   { to: "/portal/admin", label: "Admin", icon: ShieldCheck, adminOnly: true },
 ];
