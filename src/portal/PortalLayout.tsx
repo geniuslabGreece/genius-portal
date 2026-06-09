@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Building2,
   User,
+  KeyRound,
   LifeBuoy,
   Sparkles,
 } from "lucide-react";
