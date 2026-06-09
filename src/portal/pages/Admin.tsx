@@ -344,6 +344,10 @@ export default function Admin() {
           <CustomerAdminAssignments />
         </TabsContent>
 
+        <TabsContent value="roles" className="mt-4">
+          <UserRolesPanel />
+        </TabsContent>
+
         <TabsContent value="products" className="mt-4">
           <ProductsPanel />
         </TabsContent>
