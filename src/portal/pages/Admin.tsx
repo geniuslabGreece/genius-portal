@@ -20,6 +20,7 @@ import { ProductsPanel } from "@/portal/components/ProductsPanel";
 import { AdminTicketsPanel } from "@/portal/components/AdminTicketsPanel";
 import { MailServerSettingsPanel } from "@/portal/components/MailServerSettingsPanel";
 import { AdminAzureAdPanel } from "@/portal/components/AdminAzureAdPanel";
+import { UserRolesPanel } from "@/portal/components/UserRolesPanel";
 
 interface CustomerForm {
   name: string;
