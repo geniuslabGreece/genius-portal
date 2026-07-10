@@ -47,10 +47,17 @@ export default function Login() {
   const getTarget = () => sessionStorage.getItem(POST_LOGIN_KEY) || "/portal";
   const setTarget = (path: string) => sessionStorage.setItem(POST_LOGIN_KEY, path);
 
-  // Default intent: εφόσον είμαστε στη login σελίδα, στόχος είναι το portal
+  // Prefer ?next=<relative path> (e.g. OAuth consent), otherwise default to /portal
   useEffect(() => {
-    if (!sessionStorage.getItem(POST_LOGIN_KEY)) setTarget("/portal");
+    const url = new URL(window.location.href);
+    const next = url.searchParams.get("next");
+    if (next && next.startsWith("/") && !next.startsWith("//")) {
+      setTarget(next);
+    } else if (!sessionStorage.getItem(POST_LOGIN_KEY)) {
+      setTarget("/portal");
+    }
   }, []);
+
 
   // Auto-redirect αν ο χρήστης είναι ήδη συνδεδεμένος
   useEffect(() => {
