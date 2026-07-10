@@ -70,7 +70,6 @@ export default function Login() {
 
   const handleGoogle = async () => {
     setBusy("google");
-    setTarget("/portal");
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: `${window.location.origin}/login`,
     });
@@ -85,7 +84,6 @@ export default function Login() {
 
   const handleApple = async () => {
     setBusy("apple");
-    setTarget("/portal");
     const result = await lovable.auth.signInWithOAuth("apple", {
       redirect_uri: `${window.location.origin}/login`,
     });
@@ -107,10 +105,11 @@ export default function Login() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/portal`,
+          emailRedirectTo: `${window.location.origin}${getTarget()}`,
           data: { full_name: fullName },
         },
       });
+
       if (error) {
         toast.error("Αποτυχία εγγραφής", { description: error.message });
         setBusy(null);
