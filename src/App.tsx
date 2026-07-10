@@ -18,6 +18,7 @@ import CustomerContracts from "./portal/pages/CustomerContracts.tsx";
 import Support from "./portal/pages/Support.tsx";
 import TicketDetail from "./portal/pages/TicketDetail.tsx";
 import OrgAdmin from "./portal/pages/OrgAdmin.tsx";
+import OAuthConsent from "./portal/pages/OAuthConsent.tsx";
 import { AuthProvider } from "./portal/auth/AuthContext.tsx";
 import ProtectedRoute from "./portal/auth/ProtectedRoute.tsx";
 
@@ -33,7 +34,9 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+
             <Route
               path="/portal"
               element={
