@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.1",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://osshbsfuqawrljizeruq.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "geniusnet-portal-mcp",
+      "version": "0.1.0",
+      "title": "GeniusNet Customer Portal"
+    },
+    "tools": [
+      {
+        "name": "get_my_contracts",
+        "title": "Get my contracts",
+        "description": "List the signed-in customer's contracts (software, hardware, ERP, devices). Optionally filter to those expiring within the next 60 days.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "all",
+                "expiring_soon"
+              ],
+              "description": "'all' returns every contract; 'expiring_soon' returns contracts ending within 60 days."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_my_devices",
+        "title": "Get my Azure AD devices",
+        "description": "List the signed-in customer's Azure AD synced devices with OS, compliance and last sign-in.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_my_licenses",
+        "title": "Get my Microsoft 365 licenses",
+        "description": "List the signed-in customer's Microsoft 365 / Office / Windows / EMS licenses with total and consumed units.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_copilot_usage",
+        "title": "Get Microsoft 365 Copilot usage",
+        "description": "List the signed-in customer's Microsoft 365 Copilot usage per user (assigned license and last activity across Chat/Teams/Word/Excel/PowerPoint/Outlook).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_my_tickets",
+        "title": "Get my support tickets",
+        "description": "List the signed-in customer's support tickets. Optionally filter to open (non-resolved) tickets.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "all",
+                "open"
+              ],
+              "description": "'all' returns every ticket; 'open' excludes resolved."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
