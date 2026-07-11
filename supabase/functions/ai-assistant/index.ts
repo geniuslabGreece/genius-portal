@@ -13,14 +13,19 @@ const corsHeaders = {
   "Access-Control-Expose-Headers": "X-Lovable-AIG-Run-ID",
 };
 
-function makeGateway(apiKey: string) {
+function makeGateway(apiKey: string, baseURL?: string) {
+  const isLovable = !baseURL || baseURL.includes("gateway.lovable.dev");
   return createOpenAICompatible({
     name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    headers: {
-      "Lovable-API-Key": apiKey,
-      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-    },
+    baseURL: baseURL || "https://ai.gateway.lovable.dev/v1",
+    headers: isLovable
+      ? {
+          "Lovable-API-Key": apiKey,
+          "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+        }
+      : {
+          Authorization: `Bearer ${apiKey}`,
+        },
   });
 }
 
