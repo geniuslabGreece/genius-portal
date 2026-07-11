@@ -170,18 +170,127 @@ var get_copilot_usage_default = defineTool5({
   }
 });
 
+// src/lib/mcp/tools/create-ticket.ts
+import { createClient as createClient6 } from "npm:@supabase/supabase-js@^2.103.3";
+import { defineTool as defineTool6 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z3 } from "npm:zod@^3.25.76";
+function supabaseForUser6(ctx) {
+  return createClient6(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
+    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+}
+var create_ticket_default = defineTool6({
+  name: "create_ticket",
+  title: "Create support ticket",
+  description: "Create a new support ticket for the signed-in user's company. Runs under RLS, so the ticket is always attached to that company and to this user as creator.",
+  inputSchema: {
+    subject: z3.string().trim().min(3).max(200).describe("Short subject line for the ticket."),
+    description: z3.string().trim().min(5).describe("Detailed description of the issue or request."),
+    department: z3.enum(["technical", "software", "erp", "hardware", "devices"]).describe("Target department."),
+    priority: z3.enum(["low", "normal", "high", "urgent"]).optional().describe("Ticket priority. Defaults to 'normal'.")
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  handler: async ({ subject, description, department, priority }, ctx) => {
+    if (!ctx.isAuthenticated()) {
+      return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    }
+    const supabase = supabaseForUser6(ctx);
+    const userId = ctx.getUserId();
+    const { data: profile, error: profErr } = await supabase.from("profiles").select("customer_id").eq("id", userId).maybeSingle();
+    if (profErr) return { content: [{ type: "text", text: profErr.message }], isError: true };
+    if (!profile?.customer_id) {
+      return {
+        content: [{ type: "text", text: "Your account is not linked to a customer company; cannot create tickets." }],
+        isError: true
+      };
+    }
+    const { data, error } = await supabase.from("tickets").insert({
+      customer_id: profile.customer_id,
+      created_by: userId,
+      subject,
+      description,
+      department,
+      priority: priority ?? "normal"
+    }).select("id, ticket_number, subject, status, priority, department, created_at").single();
+    if (error) return { content: [{ type: "text", text: error.message }], isError: true };
+    return {
+      content: [{ type: "text", text: JSON.stringify({ ticket: data }) }],
+      structuredContent: { ticket: data }
+    };
+  }
+});
+
+// src/lib/mcp/tools/add-ticket-message.ts
+import { createClient as createClient7 } from "npm:@supabase/supabase-js@^2.103.3";
+import { defineTool as defineTool7 } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z as z4 } from "npm:zod@^3.25.76";
+function supabaseForUser7(ctx) {
+  return createClient7(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
+    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+}
+var add_ticket_message_default = defineTool7({
+  name: "add_ticket_message",
+  title: "Add reply to a ticket",
+  description: "Post a customer reply on one of the signed-in user's tickets. Accepts the ticket id (UUID) or the numeric ticket_number. RLS ensures the ticket belongs to the user's company. Internal/admin messages are not supported.",
+  inputSchema: {
+    ticket_id: z4.string().uuid().optional().describe("Ticket UUID."),
+    ticket_number: z4.number().int().positive().optional().describe("Numeric ticket number as shown in the portal."),
+    body: z4.string().trim().min(1).max(1e4).describe("Message body.")
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  handler: async ({ ticket_id, ticket_number, body }, ctx) => {
+    if (!ctx.isAuthenticated()) {
+      return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    }
+    if (!ticket_id && !ticket_number) {
+      return { content: [{ type: "text", text: "Provide ticket_id or ticket_number." }], isError: true };
+    }
+    const supabase = supabaseForUser7(ctx);
+    let resolvedId = ticket_id;
+    if (!resolvedId) {
+      const { data: t, error: tErr } = await supabase.from("tickets").select("id").eq("ticket_number", ticket_number).maybeSingle();
+      if (tErr) return { content: [{ type: "text", text: tErr.message }], isError: true };
+      if (!t) return { content: [{ type: "text", text: "Ticket not found or not accessible." }], isError: true };
+      resolvedId = t.id;
+    }
+    const { data, error } = await supabase.from("ticket_messages").insert({
+      ticket_id: resolvedId,
+      author_user_id: ctx.getUserId(),
+      author_type: "customer",
+      is_internal: false,
+      body
+    }).select("id, ticket_id, body, created_at").single();
+    if (error) return { content: [{ type: "text", text: error.message }], isError: true };
+    return {
+      content: [{ type: "text", text: JSON.stringify({ message: data }) }],
+      structuredContent: { message: data }
+    };
+  }
+});
+
 // src/lib/mcp/index.ts
 var projectRef = "osshbsfuqawrljizeruq";
 var mcp_default = defineMcp({
   name: "geniusnet-portal-mcp",
   title: "GeniusNet Customer Portal",
   version: "0.1.0",
-  instructions: "Read-only access to the signed-in customer's GeniusNet portal data: contracts, Azure AD devices, Microsoft 365 licenses, Microsoft 365 Copilot usage and support tickets. All tools run as the signed-in user under Row Level Security, so results are always scoped to that user's company.",
+  instructions: "Access to the signed-in customer's GeniusNet portal data: contracts, Azure AD devices, Microsoft 365 licenses, Microsoft 365 Copilot usage and support tickets. Also supports creating new support tickets and posting replies. All tools run as the signed-in user under Row Level Security, so results and writes are always scoped to that user's company.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated"
   }),
-  tools: [get_my_contracts_default, get_my_devices_default, get_my_licenses_default, get_copilot_usage_default, get_my_tickets_default]
+  tools: [
+    get_my_contracts_default,
+    get_my_devices_default,
+    get_my_licenses_default,
+    get_copilot_usage_default,
+    get_my_tickets_default,
+    create_ticket_default,
+    add_ticket_message_default
+  ]
 });
 
 // lovable-mcp-supabase-entry.ts
