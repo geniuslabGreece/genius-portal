@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, Building2, Users, FileText, Activity, Trash2, X, Settings, Plug, LifeBuoy, Mail, Cloud, ShieldCheck } from "lucide-react";
+import { Plus, Search, Building2, Users, FileText, Activity, Trash2, X, Settings, Plug, LifeBuoy, Mail, Cloud, ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
