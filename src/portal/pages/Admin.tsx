@@ -21,6 +21,7 @@ import { AdminTicketsPanel } from "@/portal/components/AdminTicketsPanel";
 import { MailServerSettingsPanel } from "@/portal/components/MailServerSettingsPanel";
 import { AdminAzureAdPanel } from "@/portal/components/AdminAzureAdPanel";
 import { UserRolesPanel } from "@/portal/components/UserRolesPanel";
+import { AiAssistantSettingsPanel } from "@/portal/components/AiAssistantSettingsPanel";
 
 interface CustomerForm {
   name: string;
