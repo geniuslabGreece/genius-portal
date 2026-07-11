@@ -115,6 +115,100 @@
           "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
+      },
+      {
+        "name": "create_ticket",
+        "title": "Create support ticket",
+        "description": "Create a new support ticket for the signed-in user's company. Runs under RLS, so the ticket is always attached to that company and to this user as creator.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 200,
+              "description": "Short subject line for the ticket."
+            },
+            "description": {
+              "type": "string",
+              "minLength": 5,
+              "description": "Detailed description of the issue or request."
+            },
+            "department": {
+              "type": "string",
+              "enum": [
+                "technical",
+                "software",
+                "erp",
+                "hardware",
+                "devices"
+              ],
+              "description": "Target department."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "low",
+                "normal",
+                "high",
+                "urgent"
+              ],
+              "description": "Ticket priority. Defaults to 'normal'."
+            }
+          },
+          "required": [
+            "subject",
+            "description",
+            "department"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "add_ticket_message",
+        "title": "Add reply to a ticket",
+        "description": "Post a customer reply on one of the signed-in user's tickets. Accepts the ticket id (UUID) or the numeric ticket_number. RLS ensures the ticket belongs to the user's company. Internal/admin messages are not supported.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Ticket UUID."
+            },
+            "ticket_number": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "Numeric ticket number as shown in the portal."
+            },
+            "body": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 10000,
+              "description": "Message body."
+            }
+          },
+          "required": [
+            "body"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
       }
     ]
   }
