@@ -370,6 +370,11 @@ export default function Admin() {
           <AdminAzureAdPanel />
         </TabsContent>
 
+        <TabsContent value="ai" className="mt-4">
+          <AiAssistantSettingsPanel />
+        </TabsContent>
+
+
         <TabsContent value="howto" className="mt-4">
           <Card className="p-6 text-sm leading-relaxed text-foreground space-y-4">
             <div>
