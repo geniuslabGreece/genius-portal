@@ -179,10 +179,10 @@ Deno.serve(async (req) => {
       }),
     };
 
-    const gateway = makeGateway(lovableKey);
-    const model = gateway("google/gemini-3-flash-preview");
+    const gateway = makeGateway(effectiveKey, effectiveBaseURL);
+    const model = gateway(modelId);
 
-    const system = [
+    const defaultSystem = [
       `Είσαι ο AI Σύμβουλος του Customer Portal για την εταιρεία "${customer?.name ?? "Άγνωστη"}".`,
       `Ο χρήστης που σου μιλάει είναι: ${profile?.full_name ?? profile?.email}.`,
       `Απαντάς ΠΑΝΤΑ στα ελληνικά εκτός αν ο χρήστης γράψει σε άλλη γλώσσα.`,
@@ -191,12 +191,17 @@ Deno.serve(async (req) => {
       `Είσαι περιεκτικός, επαγγελματικός και προτείνεις ενέργειες όταν εντοπίζεις πρόβλημα (π.χ. συμβόλαια που λήγουν, μη συμμορφούμενες συσκευές, αχρησιμοποίητες Copilot άδειες).`,
     ].join("\n");
 
+    const system = customSystem
+      ? `${customSystem}\n\n(Context: εταιρεία "${customer?.name ?? "—"}", χρήστης ${profile?.full_name ?? profile?.email}.)`
+      : defaultSystem;
+
     const result = streamText({
       model,
       system,
       tools,
       stopWhen: stepCountIs(50),
       messages: await convertToModelMessages(body.messages),
+      ...(temperature !== null ? { temperature } : {}),
     });
 
     return result.toUIMessageStreamResponse({
