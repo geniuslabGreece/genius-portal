@@ -242,6 +242,7 @@ export default function Admin() {
           <TabsTrigger value="softone"><Plug className="mr-1.5 h-3.5 w-3.5" />SoftOne ERP</TabsTrigger>
           <TabsTrigger value="mail"><Mail className="mr-1.5 h-3.5 w-3.5" />Mail Server</TabsTrigger>
           <TabsTrigger value="azure"><Cloud className="mr-1.5 h-3.5 w-3.5" />Azure AD</TabsTrigger>
+          <TabsTrigger value="ai"><Sparkles className="mr-1.5 h-3.5 w-3.5" />AI Bot</TabsTrigger>
           <TabsTrigger value="howto">Οδηγός</TabsTrigger>
         </TabsList>
 
