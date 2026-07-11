@@ -13,14 +13,19 @@ const corsHeaders = {
   "Access-Control-Expose-Headers": "X-Lovable-AIG-Run-ID",
 };
 
-function makeGateway(apiKey: string) {
+function makeGateway(apiKey: string, baseURL?: string) {
+  const isLovable = !baseURL || baseURL.includes("gateway.lovable.dev");
   return createOpenAICompatible({
     name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    headers: {
-      "Lovable-API-Key": apiKey,
-      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-    },
+    baseURL: baseURL || "https://ai.gateway.lovable.dev/v1",
+    headers: isLovable
+      ? {
+          "Lovable-API-Key": apiKey,
+          "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+        }
+      : {
+          Authorization: `Bearer ${apiKey}`,
+        },
   });
 }
 
@@ -70,6 +75,19 @@ Deno.serve(async (req) => {
       .select("name")
       .eq("id", customerId)
       .maybeSingle();
+
+    // Read admin-managed AI settings (model, custom key/base URL, system prompt override, temperature).
+    const { data: settings } = await admin
+      .from("ai_assistant_settings")
+      .select("model, system_prompt, custom_api_key, custom_base_url, temperature")
+      .eq("singleton", true)
+      .maybeSingle();
+
+    const modelId: string = settings?.model || "google/gemini-3-flash-preview";
+    const effectiveKey: string = settings?.custom_api_key || lovableKey;
+    const effectiveBaseURL: string | undefined = settings?.custom_base_url || undefined;
+    const customSystem: string | null = settings?.system_prompt || null;
+    const temperature: number | null = typeof settings?.temperature === "number" ? settings.temperature : null;
 
     const body = (await req.json()) as { messages: UIMessage[] };
     if (!Array.isArray(body.messages)) {
@@ -161,10 +179,10 @@ Deno.serve(async (req) => {
       }),
     };
 
-    const gateway = makeGateway(lovableKey);
-    const model = gateway("google/gemini-3-flash-preview");
+    const gateway = makeGateway(effectiveKey, effectiveBaseURL);
+    const model = gateway(modelId);
 
-    const system = [
+    const defaultSystem = [
       `Είσαι ο AI Σύμβουλος του Customer Portal για την εταιρεία "${customer?.name ?? "Άγνωστη"}".`,
       `Ο χρήστης που σου μιλάει είναι: ${profile?.full_name ?? profile?.email}.`,
       `Απαντάς ΠΑΝΤΑ στα ελληνικά εκτός αν ο χρήστης γράψει σε άλλη γλώσσα.`,
@@ -173,12 +191,17 @@ Deno.serve(async (req) => {
       `Είσαι περιεκτικός, επαγγελματικός και προτείνεις ενέργειες όταν εντοπίζεις πρόβλημα (π.χ. συμβόλαια που λήγουν, μη συμμορφούμενες συσκευές, αχρησιμοποίητες Copilot άδειες).`,
     ].join("\n");
 
+    const system = customSystem
+      ? `${customSystem}\n\n(Context: εταιρεία "${customer?.name ?? "—"}", χρήστης ${profile?.full_name ?? profile?.email}.)`
+      : defaultSystem;
+
     const result = streamText({
       model,
       system,
       tools,
       stopWhen: stepCountIs(50),
       messages: await convertToModelMessages(body.messages),
+      ...(temperature !== null ? { temperature } : {}),
     });
 
     return result.toUIMessageStreamResponse({
