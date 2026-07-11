@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_assistant_settings: {
+        Row: {
+          created_at: string
+          custom_api_key: string | null
+          custom_base_url: string | null
+          id: string
+          model: string
+          singleton: boolean
+          system_prompt: string | null
+          temperature: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          custom_api_key?: string | null
+          custom_base_url?: string | null
+          id?: string
+          model?: string
+          singleton?: boolean
+          system_prompt?: string | null
+          temperature?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          custom_api_key?: string | null
+          custom_base_url?: string | null
+          id?: string
+          model?: string
+          singleton?: boolean
+          system_prompt?: string | null
+          temperature?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       contracts: {
         Row: {
           contract_number: string
