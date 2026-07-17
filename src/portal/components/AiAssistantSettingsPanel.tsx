@@ -201,6 +201,55 @@ export function AiAssistantSettingsPanel() {
 
         <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
           <div className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-primary" />
+            <p className="text-sm font-semibold">Πηγές δεδομένων (Tools)</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Επίλεξε από ποιες πηγές θα μπορεί ο AI Σύμβουλος να αντλεί πληροφορίες. Ό,τι δεν είναι επιλεγμένο, δεν θα είναι διαθέσιμο ως tool στο μοντέλο.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {TOOL_OPTIONS.map((t) => {
+              const checked = form.enabled_tools.includes(t.key);
+              return (
+                <label
+                  key={t.key}
+                  className="flex items-start gap-3 rounded-md border border-border bg-background p-3 text-sm cursor-pointer hover:bg-accent/30"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(v) => {
+                      const next = v
+                        ? Array.from(new Set([...form.enabled_tools, t.key]))
+                        : form.enabled_tools.filter((k) => k !== t.key);
+                      setForm({ ...form, enabled_tools: next });
+                    }}
+                  />
+                  <div>
+                    <div className="font-medium">{t.label}</div>
+                    <div className="text-xs text-muted-foreground">{t.desc}</div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <Label>Extra context (προαιρετικό)</Label>
+          <Textarea
+            rows={4}
+            value={form.extra_context ?? ""}
+            placeholder="Επιπλέον πληροφορίες που θέλεις να γνωρίζει πάντα ο AI (π.χ. πολιτικές, εσωτερικές οδηγίες, URLs τεκμηρίωσης)."
+            onChange={(e) => setForm({ ...form, extra_context: e.target.value })}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Προστίθεται στο system prompt χωρίς να το αντικαθιστά.
+          </p>
+        </div>
+
+
+        <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+          <div className="flex items-center gap-2">
             <KeyRound className="h-4 w-4 text-primary" />
             <p className="text-sm font-semibold">Custom API Key (προαιρετικό)</p>
           </div>
