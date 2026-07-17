@@ -76,10 +76,10 @@ Deno.serve(async (req) => {
       .eq("id", customerId)
       .maybeSingle();
 
-    // Read admin-managed AI settings (model, custom key/base URL, system prompt override, temperature).
+    // Read admin-managed AI settings (model, custom key/base URL, system prompt override, temperature, tools).
     const { data: settings } = await admin
       .from("ai_assistant_settings")
-      .select("model, system_prompt, custom_api_key, custom_base_url, temperature")
+      .select("model, system_prompt, custom_api_key, custom_base_url, temperature, enabled_tools, extra_context")
       .eq("singleton", true)
       .maybeSingle();
 
