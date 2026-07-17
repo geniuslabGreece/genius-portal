@@ -89,6 +89,10 @@ export function AiAssistantSettingsPanel() {
         custom_api_key: data.custom_api_key ?? null,
         custom_base_url: data.custom_base_url ?? null,
         temperature: data.temperature ?? null,
+        enabled_tools: Array.isArray((data as any).enabled_tools)
+          ? ((data as any).enabled_tools as string[])
+          : empty.enabled_tools,
+        extra_context: (data as any).extra_context ?? null,
       });
     }
   }, [data]);
@@ -100,6 +104,8 @@ export function AiAssistantSettingsPanel() {
         system_prompt: payload.system_prompt || null,
         custom_base_url: payload.custom_base_url || null,
         temperature: payload.temperature,
+        enabled_tools: payload.enabled_tools,
+        extra_context: payload.extra_context || null,
       };
       // Only update the api key if the user typed a new one (or explicitly cleared).
       if (payload.new_api_key !== undefined) {
