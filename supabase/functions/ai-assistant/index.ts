@@ -88,6 +88,10 @@ Deno.serve(async (req) => {
     const effectiveBaseURL: string | undefined = settings?.custom_base_url || undefined;
     const customSystem: string | null = settings?.system_prompt || null;
     const temperature: number | null = typeof settings?.temperature === "number" ? settings.temperature : null;
+    const enabledTools: string[] = Array.isArray(settings?.enabled_tools)
+      ? (settings!.enabled_tools as string[])
+      : ["getMyContracts", "getMyDevices", "getMyLicenses", "getCopilotUsage", "getMyTickets"];
+    const extraContext: string | null = settings?.extra_context || null;
 
     const body = (await req.json()) as { messages: UIMessage[] };
     if (!Array.isArray(body.messages)) {
