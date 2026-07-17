@@ -76,10 +76,10 @@ Deno.serve(async (req) => {
       .eq("id", customerId)
       .maybeSingle();
 
-    // Read admin-managed AI settings (model, custom key/base URL, system prompt override, temperature).
+    // Read admin-managed AI settings (model, custom key/base URL, system prompt override, temperature, tools).
     const { data: settings } = await admin
       .from("ai_assistant_settings")
-      .select("model, system_prompt, custom_api_key, custom_base_url, temperature")
+      .select("model, system_prompt, custom_api_key, custom_base_url, temperature, enabled_tools, extra_context")
       .eq("singleton", true)
       .maybeSingle();
 
@@ -88,6 +88,10 @@ Deno.serve(async (req) => {
     const effectiveBaseURL: string | undefined = settings?.custom_base_url || undefined;
     const customSystem: string | null = settings?.system_prompt || null;
     const temperature: number | null = typeof settings?.temperature === "number" ? settings.temperature : null;
+    const enabledTools: string[] = Array.isArray(settings?.enabled_tools)
+      ? (settings!.enabled_tools as string[])
+      : ["getMyContracts", "getMyDevices", "getMyLicenses", "getCopilotUsage", "getMyTickets"];
+    const extraContext: string | null = settings?.extra_context || null;
 
     const body = (await req.json()) as { messages: UIMessage[] };
     if (!Array.isArray(body.messages)) {
@@ -179,26 +183,38 @@ Deno.serve(async (req) => {
       }),
     };
 
+    // Filter tools according to admin settings
+    const filteredTools = Object.fromEntries(
+      Object.entries(tools).filter(([k]) => enabledTools.includes(k)),
+    );
+
     const gateway = makeGateway(effectiveKey, effectiveBaseURL);
     const model = gateway(modelId);
+
+    const enabledSourcesLine = enabledTools.length
+      ? `Διαθέσιμες πηγές δεδομένων: ${enabledTools.join(", ")}. Χρησιμοποίησε ΜΟΝΟ αυτές — αν ο χρήστης ζητήσει κάτι εκτός, εξήγησέ του ότι δεν έχεις πρόσβαση.`
+      : `Δεν έχεις διαθέσιμες πηγές δεδομένων — απάντησε γενικά και ενημέρωσε τον χρήστη ότι δεν έχεις πρόσβαση σε δεδομένα της εταιρείας.`;
 
     const defaultSystem = [
       `Είσαι ο AI Σύμβουλος του Customer Portal για την εταιρεία "${customer?.name ?? "Άγνωστη"}".`,
       `Ο χρήστης που σου μιλάει είναι: ${profile?.full_name ?? profile?.email}.`,
       `Απαντάς ΠΑΝΤΑ στα ελληνικά εκτός αν ο χρήστης γράψει σε άλλη γλώσσα.`,
       `Χρησιμοποίησε τα διαθέσιμα tools για να φέρεις πραγματικά δεδομένα της εταιρείας του χρήστη — μη μαντεύεις.`,
+      enabledSourcesLine,
       `Όταν παρουσιάζεις πίνακες ή λίστες, χρησιμοποίησε markdown.`,
-      `Είσαι περιεκτικός, επαγγελματικός και προτείνεις ενέργειες όταν εντοπίζεις πρόβλημα (π.χ. συμβόλαια που λήγουν, μη συμμορφούμενες συσκευές, αχρησιμοποίητες Copilot άδειες).`,
+      `Είσαι περιεκτικός, επαγγελματικός και προτείνεις ενέργειες όταν εντοπίζεις πρόβλημα.`,
     ].join("\n");
 
-    const system = customSystem
-      ? `${customSystem}\n\n(Context: εταιρεία "${customer?.name ?? "—"}", χρήστης ${profile?.full_name ?? profile?.email}.)`
+    const baseSystem = customSystem
+      ? `${customSystem}\n\n(Context: εταιρεία "${customer?.name ?? "—"}", χρήστης ${profile?.full_name ?? profile?.email}.)\n${enabledSourcesLine}`
       : defaultSystem;
+
+    const system = extraContext ? `${baseSystem}\n\n---\nΕπιπλέον οδηγίες διαχειριστή:\n${extraContext}` : baseSystem;
 
     const result = streamText({
       model,
       system,
-      tools,
+      tools: filteredTools,
       stopWhen: stepCountIs(50),
       messages: await convertToModelMessages(body.messages),
       ...(temperature !== null ? { temperature } : {}),

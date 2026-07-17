@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, Save, Eye, EyeOff, Loader2, KeyRound } from "lucide-react";
+import { Sparkles, Save, Eye, EyeOff, Loader2, KeyRound, Database } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -31,6 +32,14 @@ const MODEL_OPTIONS: { value: string; label: string; hint?: string }[] = [
   { value: "openai/gpt-5.5", label: "GPT-5.5 — top capability" },
 ];
 
+const TOOL_OPTIONS: { key: string; label: string; desc: string }[] = [
+  { key: "getMyContracts", label: "Συμβόλαια", desc: "Ενεργά συμβόλαια & ημερομηνίες λήξης" },
+  { key: "getMyDevices", label: "Συσκευές (Azure AD)", desc: "Συγχρονισμένες συσκευές, OS, compliance" },
+  { key: "getMyLicenses", label: "Άδειες Microsoft 365", desc: "Assigned/consumed licenses" },
+  { key: "getCopilotUsage", label: "Χρήση Copilot", desc: "M365 Copilot activity ανά χρήστη" },
+  { key: "getMyTickets", label: "Tickets υποστήριξης", desc: "Ιστορικό & ανοιχτά αιτήματα" },
+];
+
 interface Settings {
   id?: string;
   model: string;
@@ -38,6 +47,8 @@ interface Settings {
   custom_api_key: string | null;
   custom_base_url: string | null;
   temperature: number | null;
+  enabled_tools: string[];
+  extra_context: string | null;
 }
 
 const empty: Settings = {
@@ -46,6 +57,8 @@ const empty: Settings = {
   custom_api_key: null,
   custom_base_url: null,
   temperature: null,
+  enabled_tools: TOOL_OPTIONS.map((t) => t.key),
+  extra_context: null,
 };
 
 export function AiAssistantSettingsPanel() {
@@ -76,6 +89,10 @@ export function AiAssistantSettingsPanel() {
         custom_api_key: data.custom_api_key ?? null,
         custom_base_url: data.custom_base_url ?? null,
         temperature: data.temperature ?? null,
+        enabled_tools: Array.isArray((data as any).enabled_tools)
+          ? ((data as any).enabled_tools as string[])
+          : empty.enabled_tools,
+        extra_context: (data as any).extra_context ?? null,
       });
     }
   }, [data]);
@@ -87,6 +104,8 @@ export function AiAssistantSettingsPanel() {
         system_prompt: payload.system_prompt || null,
         custom_base_url: payload.custom_base_url || null,
         temperature: payload.temperature,
+        enabled_tools: payload.enabled_tools,
+        extra_context: payload.extra_context || null,
       };
       // Only update the api key if the user typed a new one (or explicitly cleared).
       if (payload.new_api_key !== undefined) {
@@ -179,6 +198,55 @@ export function AiAssistantSettingsPanel() {
             Αν οριστεί, αντικαθιστά το ενσωματωμένο system prompt.
           </p>
         </div>
+
+        <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-primary" />
+            <p className="text-sm font-semibold">Πηγές δεδομένων (Tools)</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Επίλεξε από ποιες πηγές θα μπορεί ο AI Σύμβουλος να αντλεί πληροφορίες. Ό,τι δεν είναι επιλεγμένο, δεν θα είναι διαθέσιμο ως tool στο μοντέλο.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {TOOL_OPTIONS.map((t) => {
+              const checked = form.enabled_tools.includes(t.key);
+              return (
+                <label
+                  key={t.key}
+                  className="flex items-start gap-3 rounded-md border border-border bg-background p-3 text-sm cursor-pointer hover:bg-accent/30"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(v) => {
+                      const next = v
+                        ? Array.from(new Set([...form.enabled_tools, t.key]))
+                        : form.enabled_tools.filter((k) => k !== t.key);
+                      setForm({ ...form, enabled_tools: next });
+                    }}
+                  />
+                  <div>
+                    <div className="font-medium">{t.label}</div>
+                    <div className="text-xs text-muted-foreground">{t.desc}</div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <Label>Extra context (προαιρετικό)</Label>
+          <Textarea
+            rows={4}
+            value={form.extra_context ?? ""}
+            placeholder="Επιπλέον πληροφορίες που θέλεις να γνωρίζει πάντα ο AI (π.χ. πολιτικές, εσωτερικές οδηγίες, URLs τεκμηρίωσης)."
+            onChange={(e) => setForm({ ...form, extra_context: e.target.value })}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Προστίθεται στο system prompt χωρίς να το αντικαθιστά.
+          </p>
+        </div>
+
 
         <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
           <div className="flex items-center gap-2">

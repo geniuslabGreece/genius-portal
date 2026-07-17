@@ -19,6 +19,8 @@ export type Database = {
           created_at: string
           custom_api_key: string | null
           custom_base_url: string | null
+          enabled_tools: Json
+          extra_context: string | null
           id: string
           model: string
           singleton: boolean
@@ -31,6 +33,8 @@ export type Database = {
           created_at?: string
           custom_api_key?: string | null
           custom_base_url?: string | null
+          enabled_tools?: Json
+          extra_context?: string | null
           id?: string
           model?: string
           singleton?: boolean
@@ -43,6 +47,8 @@ export type Database = {
           created_at?: string
           custom_api_key?: string | null
           custom_base_url?: string | null
+          enabled_tools?: Json
+          extra_context?: string | null
           id?: string
           model?: string
           singleton?: boolean
