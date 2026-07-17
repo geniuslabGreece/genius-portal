@@ -32,6 +32,14 @@ const MODEL_OPTIONS: { value: string; label: string; hint?: string }[] = [
   { value: "openai/gpt-5.5", label: "GPT-5.5 — top capability" },
 ];
 
+const TOOL_OPTIONS: { key: string; label: string; desc: string }[] = [
+  { key: "getMyContracts", label: "Συμβόλαια", desc: "Ενεργά συμβόλαια & ημερομηνίες λήξης" },
+  { key: "getMyDevices", label: "Συσκευές (Azure AD)", desc: "Συγχρονισμένες συσκευές, OS, compliance" },
+  { key: "getMyLicenses", label: "Άδειες Microsoft 365", desc: "Assigned/consumed licenses" },
+  { key: "getCopilotUsage", label: "Χρήση Copilot", desc: "M365 Copilot activity ανά χρήστη" },
+  { key: "getMyTickets", label: "Tickets υποστήριξης", desc: "Ιστορικό & ανοιχτά αιτήματα" },
+];
+
 interface Settings {
   id?: string;
   model: string;
@@ -39,6 +47,8 @@ interface Settings {
   custom_api_key: string | null;
   custom_base_url: string | null;
   temperature: number | null;
+  enabled_tools: string[];
+  extra_context: string | null;
 }
 
 const empty: Settings = {
@@ -47,6 +57,8 @@ const empty: Settings = {
   custom_api_key: null,
   custom_base_url: null,
   temperature: null,
+  enabled_tools: TOOL_OPTIONS.map((t) => t.key),
+  extra_context: null,
 };
 
 export function AiAssistantSettingsPanel() {
