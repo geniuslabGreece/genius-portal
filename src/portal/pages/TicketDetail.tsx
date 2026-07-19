@@ -19,6 +19,7 @@ import {
   TicketDepartment,
 } from "@/portal/data/tickets";
 import { cn } from "@/lib/utils";
+import { SharePointWorklogsPanel } from "@/portal/components/SharePointWorklogsPanel";
 
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>();
@@ -300,6 +301,10 @@ export default function TicketDetail() {
           </form>
         )}
       </Card>
+
+      {ticket.customer_id && (
+        <SharePointWorklogsPanel customerId={ticket.customer_id} />
+      )}
     </div>
   );
 }
