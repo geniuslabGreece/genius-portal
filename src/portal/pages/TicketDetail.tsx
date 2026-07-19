@@ -301,6 +301,10 @@ export default function TicketDetail() {
           </form>
         )}
       </Card>
+
+      {ticket.customer_id && (
+        <SharePointWorklogsPanel customerId={ticket.customer_id} />
+      )}
     </div>
   );
 }
