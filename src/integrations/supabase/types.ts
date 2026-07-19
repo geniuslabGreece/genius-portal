@@ -563,6 +563,7 @@ export type Database = {
           name: string
           notes: string | null
           phone: string | null
+          sharepoint_customer_id: number | null
           softone_id: string | null
           status: string
           updated_at: string
@@ -579,6 +580,7 @@ export type Database = {
           name: string
           notes?: string | null
           phone?: string | null
+          sharepoint_customer_id?: number | null
           softone_id?: string | null
           status?: string
           updated_at?: string
@@ -595,6 +597,7 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string | null
+          sharepoint_customer_id?: number | null
           softone_id?: string | null
           status?: string
           updated_at?: string
