@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ExternalLink, Wrench, Clock, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 
 interface Worklog {
   id: string;
@@ -30,11 +31,19 @@ export function SharePointWorklogsPanel({ customerId, customerName }: Props) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["sharepoint-worklogs", customerId],
     enabled: !!customerId,
+    retry: false,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("sharepoint-worklogs", {
         body: { customer_id: customerId, limit: 50 },
       });
-      if (error) throw error;
+      if (error) {
+        const details =
+          error instanceof FunctionsHttpError ? await error.context.text() : error.message;
+        if (details?.includes("customer_not_found_or_forbidden") || details?.includes("unauthorized")) {
+          throw new Error("forbidden");
+        }
+        throw new Error(details);
+      }
       return data as {
         customer: { id: string; name: string; sharepoint_id: number | null };
         matched_by: string | null;
@@ -44,6 +53,10 @@ export function SharePointWorklogsPanel({ customerId, customerName }: Props) {
       };
     },
   });
+
+  const isForbidden = (error as Error | null)?.message === "forbidden";
+  if (isForbidden) return null;
+
 
   return (
     <Card className="p-4">
