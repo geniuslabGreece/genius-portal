@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, Building2, Users, FileText, Activity, Trash2, X, Settings, Plug, LifeBuoy, Mail, Cloud, ShieldCheck, Sparkles } from "lucide-react";
+import { Plus, Search, Building2, Users, FileText, Activity, Trash2, X, Settings, Plug, LifeBuoy, Mail, Cloud, ShieldCheck, Sparkles, FolderKanban } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ import { MailServerSettingsPanel } from "@/portal/components/MailServerSettingsP
 import { AdminAzureAdPanel } from "@/portal/components/AdminAzureAdPanel";
 import { UserRolesPanel } from "@/portal/components/UserRolesPanel";
 import { AiAssistantSettingsPanel } from "@/portal/components/AiAssistantSettingsPanel";
+import { SharePointSettingsPanel } from "@/portal/components/SharePointSettingsPanel";
 
 interface CustomerForm {
   name: string;
@@ -241,7 +242,8 @@ export default function Admin() {
           <TabsTrigger value="tickets"><LifeBuoy className="mr-1.5 h-3.5 w-3.5" />Tickets</TabsTrigger>
           <TabsTrigger value="softone"><Plug className="mr-1.5 h-3.5 w-3.5" />SoftOne ERP</TabsTrigger>
           <TabsTrigger value="mail"><Mail className="mr-1.5 h-3.5 w-3.5" />Mail Server</TabsTrigger>
-          <TabsTrigger value="azure"><Cloud className="mr-1.5 h-3.5 w-3.5" />Azure AD</TabsTrigger>
+          <TabsTrigger value="azure"><Cloud className="mr-1.5 h-3.5 w-3.5" />Tenant / Azure AD</TabsTrigger>
+          <TabsTrigger value="sharepoint"><FolderKanban className="mr-1.5 h-3.5 w-3.5" />SharePoint</TabsTrigger>
           <TabsTrigger value="ai"><Sparkles className="mr-1.5 h-3.5 w-3.5" />AI Bot</TabsTrigger>
           <TabsTrigger value="howto">Οδηγός</TabsTrigger>
         </TabsList>
@@ -368,6 +370,10 @@ export default function Admin() {
 
         <TabsContent value="azure" className="mt-4">
           <AdminAzureAdPanel />
+        </TabsContent>
+
+        <TabsContent value="sharepoint" className="mt-4">
+          <SharePointSettingsPanel />
         </TabsContent>
 
         <TabsContent value="ai" className="mt-4">
