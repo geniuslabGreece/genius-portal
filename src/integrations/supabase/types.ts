@@ -1077,6 +1077,10 @@ export type Database = {
         Args: { _customer_id: string; _user_id: string }
         Returns: boolean
       }
+      user_has_customer_access: {
+        Args: { _customer_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "customer_admin" | "customer_user"
