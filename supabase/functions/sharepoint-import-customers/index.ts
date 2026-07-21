@@ -85,11 +85,13 @@ Deno.serve(async (req) => {
     });
     console.log("test /sites/root:", testRes.status, (await testRes.text()).slice(0, 200));
 
-    // Fetch all customers from List1 (paged)
+    // Fetch all customers from List1 (paged). Rewrite nextLink to go through gateway.
     let url =
-      `${GATEWAY}/sites/${SITE_ID}/lists/${LIST1_CUSTOMERS}/items?$expand=fields&$top=500`;
+      `${GATEWAY}/sites/${SITE_ID}/lists/${LIST1_CUSTOMERS}/items?$expand=fields&$top=200`;
     let fetched: any[] = [];
+    let page = 0;
     while (url) {
+      page++;
       const res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
@@ -98,10 +100,14 @@ Deno.serve(async (req) => {
         },
       });
       const body = await res.text();
+      console.log(`page ${page}: ${res.status} url=${url.slice(0, 120)}`);
       if (!res.ok) throw new Error(`SharePoint ${res.status}: ${body.slice(0, 400)}`);
       const json = JSON.parse(body);
       fetched.push(...(json.value ?? []));
-      url = json["@odata.nextLink"] ?? "";
+      const next = json["@odata.nextLink"] as string | undefined;
+      url = next
+        ? next.replace("https://graph.microsoft.com/v1.0", GATEWAY)
+        : "";
     }
 
     let inserted = 0;
