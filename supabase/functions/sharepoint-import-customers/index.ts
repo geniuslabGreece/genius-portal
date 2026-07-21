@@ -33,9 +33,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const lk = Deno.env.get("LOVABLE_API_KEY") ?? "";
-    const mk = Deno.env.get("MICROSOFT_SHAREPOINT_API_KEY") ?? "";
-    console.log("env check", { lk_len: lk.length, lk_dots: (lk.match(/\./g) || []).length, mk_len: mk.length, mk_dots: (mk.match(/\./g) || []).length, mk_prefix: mk.slice(0, 8) });
     const auth = req.headers.get("Authorization") ?? "";
     if (!auth.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
