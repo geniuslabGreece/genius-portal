@@ -966,6 +966,90 @@ export type Database = {
           },
         ]
       }
+      ticket_worklogs: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          description: string | null
+          duration: string | null
+          end_at: string | null
+          engineer: string | null
+          engineer_email: string | null
+          hours: number | null
+          id: string
+          method: string | null
+          raw: Json | null
+          sharepoint_customer_id: number | null
+          sharepoint_item_id: string
+          signature: string | null
+          start_at: string | null
+          synced_at: string
+          tech_notes: string | null
+          ticket_id: string | null
+          title: string | null
+          web_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          description?: string | null
+          duration?: string | null
+          end_at?: string | null
+          engineer?: string | null
+          engineer_email?: string | null
+          hours?: number | null
+          id?: string
+          method?: string | null
+          raw?: Json | null
+          sharepoint_customer_id?: number | null
+          sharepoint_item_id: string
+          signature?: string | null
+          start_at?: string | null
+          synced_at?: string
+          tech_notes?: string | null
+          ticket_id?: string | null
+          title?: string | null
+          web_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          description?: string | null
+          duration?: string | null
+          end_at?: string | null
+          engineer?: string | null
+          engineer_email?: string | null
+          hours?: number | null
+          id?: string
+          method?: string | null
+          raw?: Json | null
+          sharepoint_customer_id?: number | null
+          sharepoint_item_id?: string
+          signature?: string | null
+          start_at?: string | null
+          synced_at?: string
+          tech_notes?: string | null
+          ticket_id?: string | null
+          title?: string | null
+          web_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_worklogs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_worklogs_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tickets: {
         Row: {
           ai_chat_summary: string | null
