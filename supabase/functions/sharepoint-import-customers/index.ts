@@ -74,6 +74,17 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    // DEBUG: test simple call
+    const testUrl = `${GATEWAY}/sites/root`;
+    const testRes = await fetch(testUrl, {
+      headers: {
+        Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+        "X-Connection-Api-Key": Deno.env.get("MICROSOFT_SHAREPOINT_API_KEY") ?? "",
+        Accept: "application/json",
+      },
+    });
+    console.log("test /sites/root:", testRes.status, (await testRes.text()).slice(0, 200));
+
     // Fetch all customers from List1 (paged)
     let url =
       `${GATEWAY}/sites/${SITE_ID}/lists/${LIST1_CUSTOMERS}/items?$expand=fields($select=Title,AFM_ATL,CODE_ATL,ID_ATL)&$top=500`;
