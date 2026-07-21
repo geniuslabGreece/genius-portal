@@ -67,6 +67,22 @@ export function SharePointSettingsPanel() {
     onError: (e: any) => toast.error("Αποτυχία εισαγωγής", { description: e.message }),
   });
 
+  const syncWorklogs = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sharepoint-sync-worklogs", { body: {} });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (d: any) => {
+      toast.success("Συγχρονισμός δελτίων ολοκληρώθηκε", {
+        description: `Σύνολο: ${d.total} · αποθηκευμένα: ${d.upserted} · συνδεδεμένα σε ticket: ${d.linked} · χωρίς ticket: ${d.unlinked}`,
+      });
+      qc.invalidateQueries({ queryKey: ["ticket-worklogs"] });
+    },
+    onError: (e: any) => toast.error("Αποτυχία συγχρονισμού", { description: e.message }),
+  });
+
   return (
     <div className="space-y-4">
       <Card className="p-5">
@@ -118,10 +134,16 @@ export function SharePointSettingsPanel() {
               Το auto-matching γίνεται μέσω <strong>ΑΦΜ</strong> (πεδίο <code>AFM_ATL</code> στη λίστα «Πελάτες» του SharePoint) ή μέσω <code>sharepoint_customer_id</code>.
             </p>
           </div>
-          <Button onClick={() => importAll.mutate()} disabled={importAll.isPending}>
-            <Download className={`mr-2 h-4 w-4 ${importAll.isPending ? "animate-pulse" : ""}`} />
-            {importAll.isPending ? "Εισαγωγή…" : "Εισαγωγή πελατών από SharePoint"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => importAll.mutate()} disabled={importAll.isPending} variant="outline">
+              <Download className={`mr-2 h-4 w-4 ${importAll.isPending ? "animate-pulse" : ""}`} />
+              {importAll.isPending ? "Εισαγωγή…" : "Εισαγωγή πελατών"}
+            </Button>
+            <Button onClick={() => syncWorklogs.mutate()} disabled={syncWorklogs.isPending}>
+              <Download className={`mr-2 h-4 w-4 ${syncWorklogs.isPending ? "animate-pulse" : ""}`} />
+              {syncWorklogs.isPending ? "Συγχρονισμός…" : "Συγχρονισμός δελτίων μηχανικών"}
+            </Button>
+          </div>
         </div>
 
         <div className="mt-4 overflow-x-auto">

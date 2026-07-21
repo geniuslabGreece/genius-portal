@@ -303,7 +303,7 @@ export default function TicketDetail() {
       </Card>
 
       {ticket.customer_id && (
-        <SharePointWorklogsPanel customerId={ticket.customer_id} />
+        <SharePointWorklogsPanel ticketId={ticket.id} customerId={ticket.customer_id} />
       )}
     </div>
   );
