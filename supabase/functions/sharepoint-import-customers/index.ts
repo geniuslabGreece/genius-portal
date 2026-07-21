@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
 
     // Fetch all customers from List1 (paged)
     let url =
-      `${GATEWAY}/sites/${SITE_ID}/lists/${LIST1_CUSTOMERS}/items?$expand=fields($select=Title,AFM_ATL,CODE_ATL,ID_ATL)&$top=500`;
+      `${GATEWAY}/sites/${SITE_ID}/lists/${LIST1_CUSTOMERS}/items?$expand=fields&$top=500`;
     let fetched: any[] = [];
     while (url) {
       const res = await fetch(url, {
