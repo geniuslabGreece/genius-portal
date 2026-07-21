@@ -67,6 +67,22 @@ export function SharePointSettingsPanel() {
     onError: (e: any) => toast.error("Αποτυχία εισαγωγής", { description: e.message }),
   });
 
+  const syncWorklogs = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sharepoint-sync-worklogs", { body: {} });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (d: any) => {
+      toast.success("Συγχρονισμός δελτίων ολοκληρώθηκε", {
+        description: `Σύνολο: ${d.total} · αποθηκευμένα: ${d.upserted} · συνδεδεμένα σε ticket: ${d.linked} · χωρίς ticket: ${d.unlinked}`,
+      });
+      qc.invalidateQueries({ queryKey: ["ticket-worklogs"] });
+    },
+    onError: (e: any) => toast.error("Αποτυχία συγχρονισμού", { description: e.message }),
+  });
+
   return (
     <div className="space-y-4">
       <Card className="p-5">
