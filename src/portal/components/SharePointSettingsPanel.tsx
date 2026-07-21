@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Cloud, ExternalLink, Save } from "lucide-react";
+import { Cloud, ExternalLink, Save, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -48,6 +48,23 @@ export function SharePointSettingsPanel() {
       qc.invalidateQueries({ queryKey: ["customers"] });
     },
     onError: (e: any) => toast.error("Αποτυχία", { description: e.message }),
+  });
+
+  const importAll = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sharepoint-import-customers", { body: {} });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (d: any) => {
+      toast.success("Εισαγωγή ολοκληρώθηκε", {
+        description: `Σύνολο: ${d.total} · νέοι: ${d.inserted} · ενημερώθηκαν: ${d.updated} · παραλείφθηκαν: ${d.skipped}`,
+      });
+      qc.invalidateQueries({ queryKey: ["sp-customers-mapping"] });
+      qc.invalidateQueries({ queryKey: ["customers"] });
+    },
+    onError: (e: any) => toast.error("Αποτυχία εισαγωγής", { description: e.message }),
   });
 
   return (
@@ -94,10 +111,18 @@ export function SharePointSettingsPanel() {
       </Card>
 
       <Card className="p-5">
-        <h3 className="font-display text-lg font-semibold">Αντιστοίχιση πελατών</h3>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Το auto-matching γίνεται μέσω <strong>ΑΦΜ</strong> (πεδίο <code>AFM_ATL</code> στη λίστα «Πελάτες» του SharePoint). Εναλλακτικά δώστε χειροκίνητα το SharePoint Customer ID.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-display text-lg font-semibold">Αντιστοίχιση πελατών</h3>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Το auto-matching γίνεται μέσω <strong>ΑΦΜ</strong> (πεδίο <code>AFM_ATL</code> στη λίστα «Πελάτες» του SharePoint) ή μέσω <code>sharepoint_customer_id</code>.
+            </p>
+          </div>
+          <Button onClick={() => importAll.mutate()} disabled={importAll.isPending}>
+            <Download className={`mr-2 h-4 w-4 ${importAll.isPending ? "animate-pulse" : ""}`} />
+            {importAll.isPending ? "Εισαγωγή…" : "Εισαγωγή πελατών από SharePoint"}
+          </Button>
+        </div>
 
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-sm">
