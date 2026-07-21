@@ -50,6 +50,23 @@ export function SharePointSettingsPanel() {
     onError: (e: any) => toast.error("Αποτυχία", { description: e.message }),
   });
 
+  const importAll = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sharepoint-import-customers", { body: {} });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (d: any) => {
+      toast.success("Εισαγωγή ολοκληρώθηκε", {
+        description: `Σύνολο: ${d.total} · νέοι: ${d.inserted} · ενημερώθηκαν: ${d.updated} · παραλείφθηκαν: ${d.skipped}`,
+      });
+      qc.invalidateQueries({ queryKey: ["sp-customers-mapping"] });
+      qc.invalidateQueries({ queryKey: ["customers"] });
+    },
+    onError: (e: any) => toast.error("Αποτυχία εισαγωγής", { description: e.message }),
+  });
+
   return (
     <div className="space-y-4">
       <Card className="p-5">
