@@ -8,6 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Cloud, ExternalLink, Save, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  WorklogSyncStatusCard,
+  type WorklogSyncStatus,
+  type WorklogSyncResult,
+} from "./WorklogSyncStatusCard";
 
 const SITE_URL = "https://geniusnet.sharepoint.com";
 const SITE_ID =
@@ -67,6 +72,12 @@ export function SharePointSettingsPanel() {
     onError: (e: any) => toast.error("Αποτυχία εισαγωγής", { description: e.message }),
   });
 
+  const [syncStatus, setSyncStatus] = useState<WorklogSyncStatus>("idle");
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [finishedAt, setFinishedAt] = useState<number | null>(null);
+  const [syncResult, setSyncResult] = useState<WorklogSyncResult | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
   const syncWorklogs = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("sharepoint-sync-worklogs", { body: {} });
@@ -74,14 +85,31 @@ export function SharePointSettingsPanel() {
       if (data?.error) throw new Error(data.error);
       return data;
     },
+    onMutate: () => {
+      setSyncStatus("running");
+      setStartedAt(Date.now());
+      setFinishedAt(null);
+      setSyncResult(null);
+      setSyncError(null);
+    },
     onSuccess: (d: any) => {
+      setSyncStatus("success");
+      setFinishedAt(Date.now());
+      setSyncResult({ total: d.total, upserted: d.upserted, linked: d.linked, unlinked: d.unlinked });
       toast.success("Συγχρονισμός δελτίων ολοκληρώθηκε", {
         description: `Σύνολο: ${d.total} · αποθηκευμένα: ${d.upserted} · συνδεδεμένα σε ticket: ${d.linked} · χωρίς ticket: ${d.unlinked}`,
       });
       qc.invalidateQueries({ queryKey: ["ticket-worklogs"] });
+      qc.invalidateQueries({ queryKey: ["worklogs-last-sync"] });
     },
-    onError: (e: any) => toast.error("Αποτυχία συγχρονισμού", { description: e.message }),
+    onError: (e: any) => {
+      setSyncStatus("error");
+      setFinishedAt(Date.now());
+      setSyncError(e.message);
+      toast.error("Αποτυχία συγχρονισμού", { description: e.message });
+    },
   });
+
 
   return (
     <div className="space-y-4">
@@ -125,6 +153,16 @@ export function SharePointSettingsPanel() {
           </div>
         </div>
       </Card>
+
+      <WorklogSyncStatusCard
+        status={syncStatus}
+        startedAt={startedAt}
+        finishedAt={finishedAt}
+        result={syncResult}
+        errorMessage={syncError}
+      />
+
+
 
       <Card className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
