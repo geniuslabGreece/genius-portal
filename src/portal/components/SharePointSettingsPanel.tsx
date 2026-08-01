@@ -72,6 +72,12 @@ export function SharePointSettingsPanel() {
     onError: (e: any) => toast.error("Αποτυχία εισαγωγής", { description: e.message }),
   });
 
+  const [syncStatus, setSyncStatus] = useState<WorklogSyncStatus>("idle");
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [finishedAt, setFinishedAt] = useState<number | null>(null);
+  const [syncResult, setSyncResult] = useState<WorklogSyncResult | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
   const syncWorklogs = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("sharepoint-sync-worklogs", { body: {} });
@@ -79,14 +85,31 @@ export function SharePointSettingsPanel() {
       if (data?.error) throw new Error(data.error);
       return data;
     },
+    onMutate: () => {
+      setSyncStatus("running");
+      setStartedAt(Date.now());
+      setFinishedAt(null);
+      setSyncResult(null);
+      setSyncError(null);
+    },
     onSuccess: (d: any) => {
+      setSyncStatus("success");
+      setFinishedAt(Date.now());
+      setSyncResult({ total: d.total, upserted: d.upserted, linked: d.linked, unlinked: d.unlinked });
       toast.success("Συγχρονισμός δελτίων ολοκληρώθηκε", {
         description: `Σύνολο: ${d.total} · αποθηκευμένα: ${d.upserted} · συνδεδεμένα σε ticket: ${d.linked} · χωρίς ticket: ${d.unlinked}`,
       });
       qc.invalidateQueries({ queryKey: ["ticket-worklogs"] });
+      qc.invalidateQueries({ queryKey: ["worklogs-last-sync"] });
     },
-    onError: (e: any) => toast.error("Αποτυχία συγχρονισμού", { description: e.message }),
+    onError: (e: any) => {
+      setSyncStatus("error");
+      setFinishedAt(Date.now());
+      setSyncError(e.message);
+      toast.error("Αποτυχία συγχρονισμού", { description: e.message });
+    },
   });
+
 
   return (
     <div className="space-y-4">
