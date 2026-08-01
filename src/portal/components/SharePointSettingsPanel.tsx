@@ -8,6 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Cloud, ExternalLink, Save, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  WorklogSyncStatusCard,
+  type WorklogSyncStatus,
+  type WorklogSyncResult,
+} from "./WorklogSyncStatusCard";
 
 const SITE_URL = "https://geniusnet.sharepoint.com";
 const SITE_ID =
