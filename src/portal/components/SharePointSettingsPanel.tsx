@@ -79,11 +79,26 @@ export function SharePointSettingsPanel() {
   const [syncError, setSyncError] = useState<string | null>(null);
 
   const syncWorklogs = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("sharepoint-sync-worklogs", { body: {} });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
+    mutationFn: async (opts: { sinceDays: number | null }) => {
+      let nextLink: string | null = null;
+      let total = 0, upserted = 0, linked = 0, unlinked = 0;
+      // The SharePoint list has 50k+ items — sync in resumable chunks so no
+      // single request times out.
+      for (let round = 0; round < 500; round++) {
+        const { data, error } = await supabase.functions.invoke("sharepoint-sync-worklogs", {
+          body: { nextLink, sinceDays: opts.sinceDays, maxPages: 5 },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        total += data.processed ?? 0;
+        upserted += data.upserted ?? 0;
+        linked += data.linked ?? 0;
+        unlinked += data.unlinked ?? 0;
+        setSyncResult({ total, upserted, linked, unlinked });
+        if (data.done) break;
+        nextLink = data.nextLink;
+      }
+      return { total, upserted, linked, unlinked };
     },
     onMutate: () => {
       setSyncStatus("running");
@@ -92,10 +107,10 @@ export function SharePointSettingsPanel() {
       setSyncResult(null);
       setSyncError(null);
     },
-    onSuccess: (d: any) => {
+    onSuccess: (d) => {
       setSyncStatus("success");
       setFinishedAt(Date.now());
-      setSyncResult({ total: d.total, upserted: d.upserted, linked: d.linked, unlinked: d.unlinked });
+      setSyncResult(d);
       toast.success("Συγχρονισμός δελτίων ολοκληρώθηκε", {
         description: `Σύνολο: ${d.total} · αποθηκευμένα: ${d.upserted} · συνδεδεμένα σε ticket: ${d.linked} · χωρίς ticket: ${d.unlinked}`,
       });
@@ -109,6 +124,7 @@ export function SharePointSettingsPanel() {
       toast.error("Αποτυχία συγχρονισμού", { description: e.message });
     },
   });
+
 
 
   return (
