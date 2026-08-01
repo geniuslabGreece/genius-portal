@@ -60,9 +60,18 @@ export function SoftOneSettingsPanel() {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return data as unknown as SoftOneSettings | null;
+      if (data) return data as unknown as SoftOneSettings;
+      // No settings row yet — create an empty, disabled one so the form renders.
+      const { data: created, error: insErr } = await supabase
+        .from("softone_settings")
+        .insert({ enabled: false, deployment_type: "on_premise" } as never)
+        .select("*")
+        .single();
+      if (insErr) throw insErr;
+      return created as unknown as SoftOneSettings;
     },
   });
+
 
   const { data: logs = [] } = useQuery({
     queryKey: ["softone-logs"],
