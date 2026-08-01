@@ -193,10 +193,22 @@ export function SharePointSettingsPanel() {
               <Download className={`mr-2 h-4 w-4 ${importAll.isPending ? "animate-pulse" : ""}`} />
               {importAll.isPending ? "Εισαγωγή…" : "Εισαγωγή πελατών"}
             </Button>
-            <Button onClick={() => syncWorklogs.mutate()} disabled={syncWorklogs.isPending}>
+            <Button
+              onClick={() => syncWorklogs.mutate({ sinceDays: 365 })}
+              disabled={syncWorklogs.isPending}
+            >
               <Download className={`mr-2 h-4 w-4 ${syncWorklogs.isPending ? "animate-pulse" : ""}`} />
-              {syncWorklogs.isPending ? "Συγχρονισμός…" : "Συγχρονισμός δελτίων μηχανικών"}
+              {syncWorklogs.isPending ? "Συγχρονισμός…" : "Συγχρονισμός δελτίων (12 μήνες)"}
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => syncWorklogs.mutate({ sinceDays: null })}
+              disabled={syncWorklogs.isPending}
+            >
+              <Download className={`mr-2 h-4 w-4 ${syncWorklogs.isPending ? "animate-pulse" : ""}`} />
+              Πλήρης συγχρονισμός
+            </Button>
+
           </div>
         </div>
 
