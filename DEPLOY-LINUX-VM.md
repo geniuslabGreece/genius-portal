@@ -155,3 +155,43 @@ curl -I https://portal.geniusnet.gr
 | Login redirect loop | Δεν έχει προστεθεί το domain στα Redirect URLs του backend |
 | Edge functions 401 | Ισχύουν κανονικά — τρέχουν στο Cloud, όχι στο VM |
 | Out of memory στο build | `NODE_OPTIONS=--max-old-space-size=2048 npm run build` (min 2GB RAM) |
+
+---
+
+## 10. Εναλλακτικά: Docker (χωρίς χειροκίνητες ρυθμίσεις)
+
+Στο VM αρκεί Docker + Compose:
+
+```bash
+curl -fsSL https://get.docker.com | sudo sh
+```
+
+Μετά:
+
+```bash
+cd /opt/portal
+cp .env.docker.example .env     # οι ίδιες VITE_* τιμές + PORT
+docker compose up -d --build
+```
+
+Το site τρέχει στο `http://<vm-ip>:8080` (nginx μέσα στο container, με SPA fallback,
+gzip και cache headers ήδη ρυθμισμένα στο `docker/nginx.conf`).
+
+Ενημέρωση:
+
+```bash
+git pull && docker compose up -d --build
+```
+
+Λογs / κατάσταση:
+
+```bash
+docker compose logs -f
+docker compose ps
+```
+
+> Σημείωση: τα `VITE_*` ενσωματώνονται στο bundle **κατά το build**, γι' αυτό περνιούνται
+> ως build args στο compose. Αν αλλάξουν, χρειάζεται `--build` ξανά.
+
+Για HTTPS/custom domain, βάλε reverse proxy (nginx ή Caddy) στο host προς το `127.0.0.1:8080`
+και μην ξεχάσεις τα Redirect URLs του βήματος 7.
