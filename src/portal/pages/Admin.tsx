@@ -233,7 +233,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="customers">
-        <TabsList>
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="customers">Πελάτες</TabsTrigger>
           <TabsTrigger value="users"><Users className="mr-1.5 h-3.5 w-3.5" />Χρήστες</TabsTrigger>
           <TabsTrigger value="customer-admins"><ShieldCheck className="mr-1.5 h-3.5 w-3.5" />Customer Admins</TabsTrigger>
