@@ -51,7 +51,14 @@ export function SoftOneSettingsPanel() {
   const qc = useQueryClient();
   const [form, setForm] = useState<SoftOneSettings | null>(null);
 
-  const { data: settings, isLoading } = useQuery({
+  const {
+    data: settings,
+    isLoading,
+    isError: settingsFailed,
+    error: settingsError,
+    refetch: refetchSettings,
+    isFetching: settingsFetching,
+  } = useQuery({
     queryKey: ["softone-settings"],
     queryFn: async (): Promise<SoftOneSettings | null> => {
       const { data, error } = await supabase
@@ -70,6 +77,7 @@ export function SoftOneSettingsPanel() {
       if (insErr) throw insErr;
       return created as unknown as SoftOneSettings;
     },
+    retry: 1,
   });
 
 
@@ -140,8 +148,48 @@ export function SoftOneSettingsPanel() {
     onError: (e: any) => toast.error("Αποτυχία sync", { description: e.message }),
   });
 
-  if (isLoading || !form) {
+  if (isLoading) {
     return <Card className="p-6 text-sm text-muted-foreground">Φόρτωση…</Card>;
+  }
+
+  if (settingsFailed) {
+    const message = settingsError instanceof Error
+      ? settingsError.message
+      : "Δεν ήταν δυνατή η ανάκτηση των ρυθμίσεων SoftOne.";
+
+    return (
+      <Card className="p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-5 w-5 text-destructive" />
+            <div>
+              <p className="font-semibold">Αποτυχία φόρτωσης ρυθμίσεων SoftOne</p>
+              <p className="mt-1 text-sm text-muted-foreground">{message}</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => refetchSettings()}
+            disabled={settingsFetching}
+          >
+            <RefreshCw className={cn("mr-2 h-4 w-4", settingsFetching && "animate-spin")} />
+            {settingsFetching ? "Επανάληψη…" : "Δοκιμή ξανά"}
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!form) {
+    return (
+      <Card className="p-6 text-sm text-muted-foreground">
+        Οι ρυθμίσεις SoftOne δεν είναι διαθέσιμες. Πατήστε «Δοκιμή ξανά» για επαναφόρτωση.
+        <Button variant="outline" className="mt-4 flex" onClick={() => refetchSettings()}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Δοκιμή ξανά
+        </Button>
+      </Card>
+    );
   }
 
   const upd = <K extends keyof SoftOneSettings>(k: K, v: SoftOneSettings[K]) =>
