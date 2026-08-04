@@ -193,5 +193,5 @@ docker compose ps
 > Σημείωση: τα `VITE_*` ενσωματώνονται στο bundle **κατά το build**, γι' αυτό περνιούνται
 > ως build args στο compose. Αν αλλάξουν, χρειάζεται `--build` ξανά.
 
-Για HTTPS/custom domain, βάλε reverse proxy (nginx ή Caddy) στο host προς το `127.0.0.1:8080`
+Για HTTPS/custom domain υπάρχει έτοιμο overlay `docker-compose.proxy.yml` (nginx + certbot) — δες το κεφάλαιο 9 του `DOCKER.md`
 και μην ξεχάσεις τα Redirect URLs του βήματος 7.

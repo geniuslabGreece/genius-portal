@@ -1,0 +1,38 @@
+services:
+  portal:
+    # Το app δεν εκτίθεται δημόσια — μόνο μέσω του proxy.
+    # Στο .env βάλε PORT=127.0.0.1:8080 ώστε να ακούει μόνο τοπικά.
+    expose:
+      - "80"
+
+  proxy:
+    image: nginx:alpine
+    container_name: geniusnet-proxy
+    restart: unless-stopped
+    depends_on:
+      - portal
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/proxy:/templates:ro
+      - certbot-conf:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: ["/bin/sh", "/templates/entrypoint.sh"]
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: geniusnet-certbot
+    restart: unless-stopped
+    volumes:
+      - certbot-conf:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: >
+      sh -c "trap exit TERM;
+      while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
+
+volumes:
+  certbot-conf:
+  certbot-www:

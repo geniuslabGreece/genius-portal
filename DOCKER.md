@@ -120,3 +120,85 @@ sudo certbot --nginx -d portal.geniusnet.gr
 | Δεν ανοίγει η θύρα | `sudo ufw allow 8080/tcp` (ή 80/443 αν έχεις proxy) |
 | Build σφάλμα npm | `docker compose build --no-cache portal` |
 | Login redirect error | Λάθος Site/Redirect URLs (βήμα 8) |
+
+---
+
+## 9. Έτοιμο HTTPS reverse proxy μέσα στο Docker (συνιστάται)
+
+Αντί για nginx/certbot στο host, υπάρχει έτοιμο overlay: `docker-compose.proxy.yml`
+(nginx proxy στις θύρες 80/443 + certbot με αυτόματη ανανέωση).
+
+### 9.1 Ρύθμιση `.env`
+
+```env
+VITE_SUPABASE_PROJECT_ID="osshbsfuqawrljizeruq"
+VITE_SUPABASE_URL="https://osshbsfuqawrljizeruq.supabase.co"
+VITE_SUPABASE_PUBLISHABLE_KEY="sb_publishable_..."
+PORT=127.0.0.1:8080          # το app ακούει μόνο τοπικά, δημόσια βγαίνει ο proxy
+DOMAIN=portal.geniusnet.gr
+LETSENCRYPT_EMAIL=admin@geniusnet.gr
+```
+
+Το DNS του `DOMAIN` πρέπει να δείχνει **A record** στην public IP του VM, και οι θύρες 80/443
+να είναι ανοιχτές (`sudo ufw allow 80,443/tcp`).
+
+### 9.2 Πρώτη εκκίνηση (HTTP bootstrap)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
+```
+
+Ο proxy ξεκινά αυτόματα σε **HTTP mode** όσο δεν υπάρχει πιστοποιητικό.
+Έλεγχος: `curl -I http://portal.geniusnet.gr` → 200.
+
+### 9.3 Έκδοση πιστοποιητικού
+
+```bash
+source .env
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml run --rm certbot \
+  certonly --webroot -w /var/www/certbot \
+  -d "$DOMAIN" --email "$LETSENCRYPT_EMAIL" --agree-tos --no-eff-email
+```
+
+### 9.4 Ενεργοποίηση HTTPS
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml restart proxy
+curl -I https://portal.geniusnet.gr
+```
+
+Ο proxy ανιχνεύει το πιστοποιητικό και περνά σε HTTPS mode: HTTP → 301 redirect,
+TLS 1.2/1.3, HSTS, WebSocket support, `X-Forwarded-*` headers.
+
+### 9.5 Ανανέωση
+
+Το container `certbot` τρέχει `renew` κάθε 12 ώρες και ο nginx κάνει reload μόνος του.
+Χειροκίνητος έλεγχος:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml run --rm certbot renew --dry-run
+```
+
+### 9.6 Καθημερινές εντολές
+
+```bash
+alias dcp='docker compose -f docker-compose.yml -f docker-compose.proxy.yml'
+dcp ps
+dcp logs -f proxy
+dcp up -d --build      # μετά από git pull
+```
+
+### 9.7 Μην ξεχάσεις τα Redirect URLs
+
+Στο backend (Authentication → URL Configuration):
+- Site URL: `https://portal.geniusnet.gr`
+- Redirect URLs: `https://portal.geniusnet.gr/**`
+
+### Troubleshooting proxy
+
+| Πρόβλημα | Λύση |
+|---|---|
+| `certbot` challenge failed | Το DNS δεν δείχνει στο VM ή η θύρα 80 είναι κλειστή |
+| Ο proxy μένει σε HTTP | Δεν εκδόθηκε cert → δες `dcp logs certbot` και ξανατρέξε 9.3 |
+| 502 Bad Gateway | Το `portal` container δεν τρέχει → `dcp logs portal` |
+| Rate limit Let's Encrypt | Δοκίμασε με `--staging` πριν το κανονικό cert |
