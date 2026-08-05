@@ -11,7 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, X, Loader2, ShieldCheck } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Search, Plus, X, Loader2, ShieldCheck, Building2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions, NO_PERMISSION_MESSAGE } from "@/portal/auth/permissions";
@@ -34,6 +43,12 @@ interface ProfileRow {
   id: string;
   email: string;
   full_name: string | null;
+  customer_id: string | null;
+}
+
+interface CustomerRow {
+  id: string;
+  name: string;
 }
 
 interface RoleRow {
@@ -45,6 +60,84 @@ interface RoleRow {
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString("el-GR", { dateStyle: "short", timeStyle: "short" });
+
+function CustomerAssign({
+  userId,
+  currentId,
+  customers,
+  disabled,
+  onAssign,
+  pending,
+}: {
+  userId: string;
+  currentId: string | null;
+  customers: CustomerRow[];
+  disabled: boolean;
+  onAssign: (userId: string, customerId: string | null) => void;
+  pending: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = customers.find((c) => c.id === currentId);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          role="combobox"
+          disabled={disabled}
+          className="h-8 w-56 justify-start gap-2 truncate"
+        >
+          {pending ? (
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+          ) : (
+            <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          )}
+          <span className="truncate text-xs">
+            {current?.name ?? "— Χωρίς εταιρεία —"}
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Αναζήτηση εταιρείας…" />
+          <CommandList>
+            <CommandEmpty>Δεν βρέθηκε εταιρεία.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="__none__"
+                onSelect={() => {
+                  onAssign(userId, null);
+                  setOpen(false);
+                }}
+              >
+                <X className="mr-2 h-3.5 w-3.5" />
+                Χωρίς εταιρεία
+              </CommandItem>
+              {customers.map((c) => (
+                <CommandItem
+                  key={c.id}
+                  value={`${c.name} ${c.id}`}
+                  onSelect={() => {
+                    onAssign(userId, c.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={`mr-2 h-3.5 w-3.5 ${c.id === currentId ? "opacity-100" : "opacity-0"}`}
+                  />
+                  <span className="truncate">{c.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 
 export function UserRolesPanel() {
   const qc = useQueryClient();
@@ -58,11 +151,40 @@ export function UserRolesPanel() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, email, full_name")
+        .select("id, email, full_name, customer_id")
         .order("email");
       if (error) throw error;
       return (data ?? []) as ProfileRow[];
     },
+  });
+
+  const { data: customers = [] } = useQuery({
+    queryKey: ["roles-panel-customers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, name")
+        .order("name")
+        .limit(5000);
+      if (error) throw error;
+      return (data ?? []) as CustomerRow[];
+    },
+  });
+
+  const assignCustomer = useMutation({
+    mutationFn: async (vars: { userId: string; customerId: string | null }) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ customer_id: vars.customerId })
+        .eq("id", vars.userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Η εταιρεία ενημερώθηκε");
+      qc.invalidateQueries({ queryKey: ["roles-panel-profiles"] });
+      qc.invalidateQueries({ queryKey: ["all-users"] });
+    },
+    onError: (e: any) => toast.error("Αποτυχία", { description: e.message }),
   });
 
   const { data: allRoles = [] } = useQuery({
@@ -75,6 +197,7 @@ export function UserRolesPanel() {
       return (data ?? []) as RoleRow[];
     },
   });
+
 
   const rolesByUser = useMemo(() => {
     const m = new Map<string, RoleRow[]>();
@@ -124,9 +247,10 @@ export function UserRolesPanel() {
       <div className="flex items-center gap-3 border-b border-border p-4">
         <ShieldCheck className="h-5 w-5 text-primary" />
         <div className="flex-1">
-          <h3 className="text-sm font-semibold">Διαχείριση ρόλων χρηστών</h3>
+          <h3 className="text-sm font-semibold">Διαχείριση χρηστών, εταιρειών & ρόλων</h3>
           <p className="text-xs text-muted-foreground">
-            Ανάθεση/αφαίρεση πολλαπλών ρόλων ανά χρήστη με ορατή την ημερομηνία απόδοσης.
+            Ανάθεση εταιρείας και ρόλων ανά χρήστη. Κάθε νέος χρήστης γίνεται αυτόματα Customer
+            Admin μόνο για τη δική του εταιρεία.
           </p>
         </div>
       </div>
@@ -149,6 +273,7 @@ export function UserRolesPanel() {
           <thead className="border-b border-border bg-muted/40 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="px-4 py-3 font-semibold">Χρήστης</th>
+              <th className="px-4 py-3 font-semibold">Εταιρεία</th>
               <th className="px-4 py-3 font-semibold">Ρόλοι (με ημ/νία)</th>
               <th className="px-4 py-3 font-semibold text-right">Προσθήκη ρόλου</th>
             </tr>
@@ -156,18 +281,19 @@ export function UserRolesPanel() {
           <tbody className="divide-y divide-border">
             {isLoading && (
               <tr>
-                <td colSpan={3} className="p-8 text-center text-muted-foreground">
+                <td colSpan={4} className="p-8 text-center text-muted-foreground">
                   Φόρτωση…
                 </td>
               </tr>
             )}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td colSpan={3} className="p-8 text-center text-muted-foreground">
+                <td colSpan={4} className="p-8 text-center text-muted-foreground">
                   Δεν βρέθηκαν χρήστες.
                 </td>
               </tr>
             )}
+
             {filtered.map((u) => {
               const userRoles = rolesByUser.get(u.id) ?? [];
               const availableRoles = (["admin", "customer_admin", "customer_user"] as Role[]).filter(
@@ -181,6 +307,26 @@ export function UserRolesPanel() {
                     <div className="text-xs text-muted-foreground">{u.email}</div>
                   </td>
                   <td className="px-4 py-3">
+                    <CustomerAssign
+                      userId={u.id}
+                      currentId={u.customer_id}
+                      customers={customers}
+                      disabled={!allowed}
+                      pending={
+                        assignCustomer.isPending &&
+                        assignCustomer.variables?.userId === u.id
+                      }
+                      onAssign={(userId, customerId) => {
+                        if (!allowed) {
+                          toast.error(NO_PERMISSION_MESSAGE);
+                          return;
+                        }
+                        assignCustomer.mutate({ userId, customerId });
+                      }}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+
                     {userRoles.length === 0 ? (
                       <span className="text-xs text-muted-foreground">— Κανένας ρόλος —</span>
                     ) : (
