@@ -151,11 +151,40 @@ export function UserRolesPanel() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, email, full_name")
+        .select("id, email, full_name, customer_id")
         .order("email");
       if (error) throw error;
       return (data ?? []) as ProfileRow[];
     },
+  });
+
+  const { data: customers = [] } = useQuery({
+    queryKey: ["roles-panel-customers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, name")
+        .order("name")
+        .limit(5000);
+      if (error) throw error;
+      return (data ?? []) as CustomerRow[];
+    },
+  });
+
+  const assignCustomer = useMutation({
+    mutationFn: async (vars: { userId: string; customerId: string | null }) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ customer_id: vars.customerId })
+        .eq("id", vars.userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Η εταιρεία ενημερώθηκε");
+      qc.invalidateQueries({ queryKey: ["roles-panel-profiles"] });
+      qc.invalidateQueries({ queryKey: ["all-users"] });
+    },
+    onError: (e: any) => toast.error("Αποτυχία", { description: e.message }),
   });
 
   const { data: allRoles = [] } = useQuery({
@@ -168,6 +197,7 @@ export function UserRolesPanel() {
       return (data ?? []) as RoleRow[];
     },
   });
+
 
   const rolesByUser = useMemo(() => {
     const m = new Map<string, RoleRow[]>();
