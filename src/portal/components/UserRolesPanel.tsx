@@ -307,6 +307,26 @@ export function UserRolesPanel() {
                     <div className="text-xs text-muted-foreground">{u.email}</div>
                   </td>
                   <td className="px-4 py-3">
+                    <CustomerAssign
+                      userId={u.id}
+                      currentId={u.customer_id}
+                      customers={customers}
+                      disabled={!allowed}
+                      pending={
+                        assignCustomer.isPending &&
+                        assignCustomer.variables?.userId === u.id
+                      }
+                      onAssign={(userId, customerId) => {
+                        if (!allowed) {
+                          toast.error(NO_PERMISSION_MESSAGE);
+                          return;
+                        }
+                        assignCustomer.mutate({ userId, customerId });
+                      }}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+
                     {userRoles.length === 0 ? (
                       <span className="text-xs text-muted-foreground">— Κανένας ρόλος —</span>
                     ) : (
