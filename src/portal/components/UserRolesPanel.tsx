@@ -11,7 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, X, Loader2, ShieldCheck } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Search, Plus, X, Loader2, ShieldCheck, Building2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions, NO_PERMISSION_MESSAGE } from "@/portal/auth/permissions";
@@ -34,6 +43,12 @@ interface ProfileRow {
   id: string;
   email: string;
   full_name: string | null;
+  customer_id: string | null;
+}
+
+interface CustomerRow {
+  id: string;
+  name: string;
 }
 
 interface RoleRow {
@@ -45,6 +60,84 @@ interface RoleRow {
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString("el-GR", { dateStyle: "short", timeStyle: "short" });
+
+function CustomerAssign({
+  userId,
+  currentId,
+  customers,
+  disabled,
+  onAssign,
+  pending,
+}: {
+  userId: string;
+  currentId: string | null;
+  customers: CustomerRow[];
+  disabled: boolean;
+  onAssign: (userId: string, customerId: string | null) => void;
+  pending: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = customers.find((c) => c.id === currentId);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          role="combobox"
+          disabled={disabled}
+          className="h-8 w-56 justify-start gap-2 truncate"
+        >
+          {pending ? (
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+          ) : (
+            <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          )}
+          <span className="truncate text-xs">
+            {current?.name ?? "— Χωρίς εταιρεία —"}
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Αναζήτηση εταιρείας…" />
+          <CommandList>
+            <CommandEmpty>Δεν βρέθηκε εταιρεία.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="__none__"
+                onSelect={() => {
+                  onAssign(userId, null);
+                  setOpen(false);
+                }}
+              >
+                <X className="mr-2 h-3.5 w-3.5" />
+                Χωρίς εταιρεία
+              </CommandItem>
+              {customers.map((c) => (
+                <CommandItem
+                  key={c.id}
+                  value={`${c.name} ${c.id}`}
+                  onSelect={() => {
+                    onAssign(userId, c.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={`mr-2 h-3.5 w-3.5 ${c.id === currentId ? "opacity-100" : "opacity-0"}`}
+                  />
+                  <span className="truncate">{c.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 
 export function UserRolesPanel() {
   const qc = useQueryClient();
