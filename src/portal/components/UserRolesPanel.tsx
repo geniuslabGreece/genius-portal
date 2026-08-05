@@ -247,9 +247,10 @@ export function UserRolesPanel() {
       <div className="flex items-center gap-3 border-b border-border p-4">
         <ShieldCheck className="h-5 w-5 text-primary" />
         <div className="flex-1">
-          <h3 className="text-sm font-semibold">Διαχείριση ρόλων χρηστών</h3>
+          <h3 className="text-sm font-semibold">Διαχείριση χρηστών, εταιρειών & ρόλων</h3>
           <p className="text-xs text-muted-foreground">
-            Ανάθεση/αφαίρεση πολλαπλών ρόλων ανά χρήστη με ορατή την ημερομηνία απόδοσης.
+            Ανάθεση εταιρείας και ρόλων ανά χρήστη. Κάθε νέος χρήστης γίνεται αυτόματα Customer
+            Admin μόνο για τη δική του εταιρεία.
           </p>
         </div>
       </div>
@@ -272,6 +273,7 @@ export function UserRolesPanel() {
           <thead className="border-b border-border bg-muted/40 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="px-4 py-3 font-semibold">Χρήστης</th>
+              <th className="px-4 py-3 font-semibold">Εταιρεία</th>
               <th className="px-4 py-3 font-semibold">Ρόλοι (με ημ/νία)</th>
               <th className="px-4 py-3 font-semibold text-right">Προσθήκη ρόλου</th>
             </tr>
@@ -279,18 +281,19 @@ export function UserRolesPanel() {
           <tbody className="divide-y divide-border">
             {isLoading && (
               <tr>
-                <td colSpan={3} className="p-8 text-center text-muted-foreground">
+                <td colSpan={4} className="p-8 text-center text-muted-foreground">
                   Φόρτωση…
                 </td>
               </tr>
             )}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td colSpan={3} className="p-8 text-center text-muted-foreground">
+                <td colSpan={4} className="p-8 text-center text-muted-foreground">
                   Δεν βρέθηκαν χρήστες.
                 </td>
               </tr>
             )}
+
             {filtered.map((u) => {
               const userRoles = rolesByUser.get(u.id) ?? [];
               const availableRoles = (["admin", "customer_admin", "customer_user"] as Role[]).filter(
