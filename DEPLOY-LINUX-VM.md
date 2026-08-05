@@ -195,3 +195,13 @@ docker compose ps
 
 Για HTTPS/custom domain υπάρχει έτοιμο overlay `docker-compose.proxy.yml` (nginx + certbot) — δες το κεφάλαιο 9 του `DOCKER.md`
 και μην ξεχάσεις τα Redirect URLs του βήματος 7.
+
+---
+
+## 11. Πλήρες self-host (και backend στο VM)
+
+Ο παραπάνω οδηγός κρατά το backend στο Lovable Cloud. Αν θέλεις **τα πάντα στο VM**
+(database, auth, storage, edge functions) με export schema/δεδομένων και re-configure των
+OAuth providers, δες το **[`SELF-HOST-BACKEND.md`](./SELF-HOST-BACKEND.md)**.
+Απαιτήσεις: 4 vCPU / 8 GB RAM και δεύτερο subdomain για το API (π.χ. `api.geniusnet.gr`).
+
