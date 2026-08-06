@@ -80,9 +80,38 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // --- Require an authenticated caller ---
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const token = authHeader.slice("Bearer ".length).trim();
+    const authClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    const { data: userData, error: userErr } = await authClient.auth.getUser(token);
+    if (userErr || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const callerId = userData.user.id;
+
     const { ticket_id, event } = await req.json();
-    if (!ticket_id || !event) {
-      return new Response(JSON.stringify({ error: "ticket_id and event required" }), {
+    if (!ticket_id || !event || (event !== "created" && event !== "reply")) {
+      return new Response(JSON.stringify({ error: "valid ticket_id and event required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(ticket_id))) {
+      return new Response(JSON.stringify({ error: "invalid ticket_id" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -94,10 +123,26 @@ serve(async (req) => {
 
     const { data: ticket, error: ticketErr } = await supabase
       .from("tickets")
-      .select("id, ticket_number, subject, description, department, priority, customer_id, status")
+      .select("id, ticket_number, subject, description, department, priority, customer_id, status, created_by")
       .eq("id", ticket_id)
       .single();
     if (ticketErr || !ticket) throw ticketErr ?? new Error("Ticket not found");
+
+    // --- Authorize: caller must own the ticket or have access to its customer ---
+    let allowed = ticket.created_by === callerId;
+    if (!allowed) {
+      const { data: hasAccess } = await supabase.rpc("user_has_customer_access", {
+        _user_id: callerId,
+        _customer_id: ticket.customer_id,
+      });
+      allowed = hasAccess === true;
+    }
+    if (!allowed) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Auto-routing on creation
     if (event === "created") {
