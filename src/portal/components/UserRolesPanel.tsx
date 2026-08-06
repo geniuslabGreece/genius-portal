@@ -180,8 +180,9 @@ export function UserRolesPanel() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Η εταιρεία ενημερώθηκε");
+      toast.success("Η εταιρεία ενημερώθηκε — ο ρόλος Customer Admin ρυθμίστηκε αυτόματα");
       qc.invalidateQueries({ queryKey: ["roles-panel-profiles"] });
+      qc.invalidateQueries({ queryKey: ["roles-panel-roles"] });
       qc.invalidateQueries({ queryKey: ["all-users"] });
     },
     onError: (e: any) => toast.error("Αποτυχία", { description: e.message }),
