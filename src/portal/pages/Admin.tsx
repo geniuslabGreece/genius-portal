@@ -23,6 +23,7 @@ import { AdminAzureAdPanel } from "@/portal/components/AdminAzureAdPanel";
 import { UserRolesPanel } from "@/portal/components/UserRolesPanel";
 import { AiAssistantSettingsPanel } from "@/portal/components/AiAssistantSettingsPanel";
 import { SharePointSettingsPanel } from "@/portal/components/SharePointSettingsPanel";
+import { CustomerDomainsEditor, type DomainRow } from "@/portal/components/CustomerDomainsEditor";
 
 interface CustomerForm {
   name: string;
