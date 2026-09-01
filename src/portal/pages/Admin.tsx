@@ -291,17 +291,11 @@ export default function Admin() {
                       <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
                       <td className="px-4 py-3 text-muted-foreground">{c.vat_number ?? "—"}</td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {(domainsByCustomer[c.id] ?? []).length === 0 ? (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          ) : (
-                            (domainsByCustomer[c.id] ?? []).map((d) => (
-                              <span key={d} className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground/80">
-                                @{d}
-                              </span>
-                            ))
-                          )}
-                        </div>
+                        <CustomerDomainsEditor
+                          customerId={c.id}
+                          customerName={c.name}
+                          domains={domainsByCustomer[c.id] ?? []}
+                        />
                       </td>
                       <td className="px-4 py-3 text-right font-semibold">{c.contract_count ?? 0}</td>
                       <td className="px-4 py-3">
