@@ -1161,6 +1161,8 @@ export type Database = {
         Args: { _customer_id: string; _user_id: string }
         Returns: boolean
       }
+      is_generic_email_domain: { Args: { _domain: string }; Returns: boolean }
+      match_customer_for_domain: { Args: { _domain: string }; Returns: string }
       user_has_customer_access: {
         Args: { _customer_id: string; _user_id: string }
         Returns: boolean

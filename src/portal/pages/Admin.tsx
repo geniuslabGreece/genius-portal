@@ -23,6 +23,7 @@ import { AdminAzureAdPanel } from "@/portal/components/AdminAzureAdPanel";
 import { UserRolesPanel } from "@/portal/components/UserRolesPanel";
 import { AiAssistantSettingsPanel } from "@/portal/components/AiAssistantSettingsPanel";
 import { SharePointSettingsPanel } from "@/portal/components/SharePointSettingsPanel";
+import { CustomerDomainsEditor, type DomainRow } from "@/portal/components/CustomerDomainsEditor";
 
 interface CustomerForm {
   name: string;
@@ -56,11 +57,13 @@ export default function Admin() {
   const { data: domainsByCustomer = {} } = useQuery({
     queryKey: ["customer-domains-all"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customer_email_domains").select("*");
+      const { data, error } = await supabase
+        .from("customer_email_domains")
+        .select("id, customer_id, domain");
       if (error) throw error;
-      const map: Record<string, string[]> = {};
+      const map: Record<string, DomainRow[]> = {};
       (data ?? []).forEach((d: any) => {
-        map[d.customer_id] = [...(map[d.customer_id] ?? []), d.domain];
+        map[d.customer_id] = [...(map[d.customer_id] ?? []), { id: d.id, domain: d.domain }];
       });
       return map;
     },
@@ -71,7 +74,7 @@ export default function Admin() {
     return (
       c.name.toLowerCase().includes(q) ||
       (c.vat_number ?? "").includes(search) ||
-      (domainsByCustomer[c.id] ?? []).some((d) => d.toLowerCase().includes(q))
+      (domainsByCustomer[c.id] ?? []).some((d) => d.domain.toLowerCase().includes(q))
     );
   });
 
@@ -288,17 +291,11 @@ export default function Admin() {
                       <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
                       <td className="px-4 py-3 text-muted-foreground">{c.vat_number ?? "—"}</td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {(domainsByCustomer[c.id] ?? []).length === 0 ? (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          ) : (
-                            (domainsByCustomer[c.id] ?? []).map((d) => (
-                              <span key={d} className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground/80">
-                                @{d}
-                              </span>
-                            ))
-                          )}
-                        </div>
+                        <CustomerDomainsEditor
+                          customerId={c.id}
+                          customerName={c.name}
+                          domains={domainsByCustomer[c.id] ?? []}
+                        />
                       </td>
                       <td className="px-4 py-3 text-right font-semibold">{c.contract_count ?? 0}</td>
                       <td className="px-4 py-3">
