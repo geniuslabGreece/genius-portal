@@ -56,11 +56,13 @@ export default function Admin() {
   const { data: domainsByCustomer = {} } = useQuery({
     queryKey: ["customer-domains-all"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customer_email_domains").select("*");
+      const { data, error } = await supabase
+        .from("customer_email_domains")
+        .select("id, customer_id, domain");
       if (error) throw error;
-      const map: Record<string, string[]> = {};
+      const map: Record<string, DomainRow[]> = {};
       (data ?? []).forEach((d: any) => {
-        map[d.customer_id] = [...(map[d.customer_id] ?? []), d.domain];
+        map[d.customer_id] = [...(map[d.customer_id] ?? []), { id: d.id, domain: d.domain }];
       });
       return map;
     },
@@ -71,7 +73,7 @@ export default function Admin() {
     return (
       c.name.toLowerCase().includes(q) ||
       (c.vat_number ?? "").includes(search) ||
-      (domainsByCustomer[c.id] ?? []).some((d) => d.toLowerCase().includes(q))
+      (domainsByCustomer[c.id] ?? []).some((d) => d.domain.toLowerCase().includes(q))
     );
   });
 
