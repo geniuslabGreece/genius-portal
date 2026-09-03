@@ -1,6 +1,6 @@
 server {
     listen 80;
-    server_name ${DOMAIN} www.${DOMAIN} ${API_DOMAIN};
+    server_name ${DOMAIN} www.${DOMAIN};
 
     # ACME http-01 challenge (certbot webroot)
     location /.well-known/acme-challenge/ {
@@ -80,5 +80,18 @@ server {
         proxy_set_header Upgrade $http_upgrade;      # realtime websockets
         proxy_set_header Connection "upgrade";
         proxy_read_timeout 300s;
+    }
+}
+
+server {
+    listen 80;
+    server_name ${API_DOMAIN};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://${API_DOMAIN}$request_uri;
     }
 }

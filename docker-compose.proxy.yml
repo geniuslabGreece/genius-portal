@@ -13,6 +13,10 @@ services:
       - portal
     environment:
       DOMAIN: ${DOMAIN}
+      API_DOMAIN: ${API_DOMAIN:-api.${DOMAIN}}
+      SUPABASE_API_UPSTREAM: ${SUPABASE_API_UPSTREAM:-host.docker.internal:8000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "80:80"
       - "443:443"
