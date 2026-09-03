@@ -202,3 +202,21 @@ dcp up -d --build      # μετά από git pull
 | Ο proxy μένει σε HTTP | Δεν εκδόθηκε cert → δες `dcp logs certbot` και ξανατρέξε 9.3 |
 | 502 Bad Gateway | Το `portal` container δεν τρέχει → `dcp logs portal` |
 | Rate limit Let's Encrypt | Δοκίμασε με `--staging` πριν το κανονικό cert |
+
+## Self-hosted backend στο ίδιο VM
+
+Στο `.env` (δες `.env.docker.example`):
+
+```env
+VITE_SUPABASE_URL="https://api.geniusnetsoc.gr"
+VITE_SUPABASE_PUBLISHABLE_KEY="<ANON_KEY του self-hosted>"
+VITE_SUPABASE_PROJECT_ID="selfhosted"
+PORT=127.0.0.1:8080
+DOMAIN=geniusnetsoc.gr
+API_DOMAIN=api.geniusnetsoc.gr
+SUPABASE_API_UPSTREAM=host.docker.internal:8000
+```
+
+Ο proxy σερβίρει το frontend στο `https://geniusnetsoc.gr` και κάνει proxy το
+Supabase Kong στο `https://api.geniusnetsoc.gr`. Πρώτη εκκίνηση:
+`./docker/proxy/init-certbot.sh` (cert για apex + www + api).

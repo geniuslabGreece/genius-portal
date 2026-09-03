@@ -11,16 +11,17 @@ cd "$(dirname "$0")/../.."
 
 DOMAIN="${DOMAIN:?DOMAIN λείπει από το .env}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:?LETSENCRYPT_EMAIL λείπει από το .env}"
+API_DOMAIN="${API_DOMAIN:-api.$DOMAIN}"
 
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.proxy.yml"
 
 echo "[1/3] Εκκίνηση portal + proxy σε HTTP bootstrap mode..."
 $COMPOSE up -d --build portal proxy
 
-echo "[2/3] Έκδοση πιστοποιητικού για ${DOMAIN} και www.${DOMAIN}..."
+echo "[2/3] Έκδοση πιστοποιητικού για ${DOMAIN}, www.${DOMAIN} και ${API_DOMAIN}..."
 $COMPOSE run --rm --entrypoint "certbot" certbot certonly \
   --webroot -w /var/www/certbot \
-  -d "${DOMAIN}" -d "www.${DOMAIN}" \
+  -d "${DOMAIN}" -d "www.${DOMAIN}" -d "${API_DOMAIN}" \
   --email "${LETSENCRYPT_EMAIL}" \
   --agree-tos --no-eff-email --non-interactive
 
