@@ -1,6 +1,6 @@
 server {
     listen 80;
-    server_name ${DOMAIN};
+    server_name ${DOMAIN} www.${DOMAIN};
 
     # Μόνο για την πρώτη έκδοση πιστοποιητικού (χωρίς HTTPS ακόμα)
     location /.well-known/acme-challenge/ {
