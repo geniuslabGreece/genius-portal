@@ -142,30 +142,30 @@ LETSENCRYPT_EMAIL=admin@geniusnetsoc.gr
 Το DNS του `DOMAIN` πρέπει να δείχνει **A record** στην public IP του VM, και οι θύρες 80/443
 να είναι ανοιχτές (`sudo ufw allow 80,443/tcp`).
 
-### 9.2 Πρώτη εκκίνηση (HTTP bootstrap)
+### 9.2 Αυτόματο setup με ένα script (συνιστάται)
+
+```bash
+./docker/proxy/init-certbot.sh
+```
+
+Κάνει τα πάντα: build + HTTP bootstrap, έκδοση πιστοποιητικού για `geniusnetsoc.gr`
+**και** `www.geniusnetsoc.gr`, και επανεκκίνηση του proxy σε HTTPS mode.
+
+### 9.3 Χειροκίνητα (αν προτιμάς)
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
-```
-
-Ο proxy ξεκινά αυτόματα σε **HTTP mode** όσο δεν υπάρχει πιστοποιητικό.
-Έλεγχος: `curl -I http://geniusnetsoc.gr` → 200.
-
-### 9.3 Έκδοση πιστοποιητικού
-
-```bash
+# HTTP mode: curl -I http://geniusnetsoc.gr  → 200
 source .env
-docker compose -f docker-compose.yml -f docker-compose.proxy.yml run --rm certbot \
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml run --rm --entrypoint certbot certbot \
   certonly --webroot -w /var/www/certbot \
-  -d "$DOMAIN" --email "$LETSENCRYPT_EMAIL" --agree-tos --no-eff-email
-```
-
-### 9.4 Ενεργοποίηση HTTPS
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.proxy.yml restart proxy
+  -d "$DOMAIN" -d "www.$DOMAIN" --email "$LETSENCRYPT_EMAIL" --agree-tos --no-eff-email
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --force-recreate proxy
 curl -I https://geniusnetsoc.gr
 ```
+
+Το `www.geniusnetsoc.gr` κάνει 301 redirect στο `geniusnetsoc.gr` (χρειάζεται και A record για το `www`).
+
 
 Ο proxy ανιχνεύει το πιστοποιητικό και περνά σε HTTPS mode: HTTP → 301 redirect,
 TLS 1.2/1.3, HSTS, WebSocket support, `X-Forwarded-*` headers.
