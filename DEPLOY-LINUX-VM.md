@@ -64,7 +64,7 @@ npm run build      # παράγει το /opt/portal/dist
 ```nginx
 server {
     listen 80;
-    server_name portal.geniusnet.gr;
+    server_name geniusnetsoc.gr;
 
     root /opt/portal/dist;
     index index.html;
@@ -95,7 +95,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d portal.geniusnet.gr
+sudo certbot --nginx -d geniusnetsoc.gr
 ```
 
 ---
@@ -104,8 +104,8 @@ sudo certbot --nginx -d portal.geniusnet.gr
 
 Στο Lovable → **Backend → Authentication → URL Configuration** πρόσθεσε το νέο domain:
 
-- Site URL: `https://portal.geniusnet.gr`
-- Redirect URLs: `https://portal.geniusnet.gr/**`
+- Site URL: `https://geniusnetsoc.gr`
+- Redirect URLs: `https://geniusnetsoc.gr/**`
 
 Και στα OAuth providers:
 - **Google Cloud Console** → Authorized redirect URI: `https://osshbsfuqawrljizeruq.supabase.co/auth/v1/callback`
@@ -139,7 +139,7 @@ chmod +x /opt/portal/deploy.sh
 ## 9. Έλεγχος
 
 ```bash
-curl -I https://portal.geniusnet.gr
+curl -I https://geniusnetsoc.gr
 ```
 Μετά άνοιξε το site → Login με Google/Microsoft → πρέπει να μπεις στο `/portal`.
 
@@ -203,5 +203,5 @@ docker compose ps
 Ο παραπάνω οδηγός κρατά το backend στο Lovable Cloud. Αν θέλεις **τα πάντα στο VM**
 (database, auth, storage, edge functions) με export schema/δεδομένων και re-configure των
 OAuth providers, δες το **[`SELF-HOST-BACKEND.md`](./SELF-HOST-BACKEND.md)**.
-Απαιτήσεις: 4 vCPU / 8 GB RAM και δεύτερο subdomain για το API (π.χ. `api.geniusnet.gr`).
+Απαιτήσεις: 4 vCPU / 8 GB RAM και δεύτερο subdomain για το API (π.χ. `api.geniusnetsoc.gr`).
 

@@ -2,7 +2,7 @@
 import { writeFileSync } from "fs";
 import { resolve } from "path";
 
-const BASE_URL = "https://geniusnetsoc.lovable.app";
+const BASE_URL = "https://geniusnetsoc.gr";
 
 interface SitemapEntry {
   path: string;
