@@ -13,4 +13,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://geniusnetsoc.lovable.app/sitemap.xml
+Sitemap: https://geniusnetsoc.gr/sitemap.xml

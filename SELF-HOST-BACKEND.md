@@ -4,7 +4,7 @@
 Το Lovable Cloud δεν χρησιμοποιείται πλέον από το app· μένει μόνο ως πηγή για το αρχικό export.
 
 > Ελάχιστες απαιτήσεις: **4 vCPU / 8 GB RAM / 60 GB disk**, Ubuntu 22.04 ή 24.04,
-> ένα domain (π.χ. `portal.geniusnet.gr`) και ένα subdomain για το API (π.χ. `api.geniusnet.gr`).
+> ένα domain (π.χ. `geniusnetsoc.gr`) και ένα subdomain για το API (π.χ. `api.geniusnetsoc.gr`).
 
 ---
 
@@ -33,7 +33,7 @@ sudo usermod -aG docker $USER && newgrp docker
 sudo apt update && sudo apt install -y git postgresql-client jq openssl
 ```
 
-DNS: `A` records για `portal.geniusnet.gr` και `api.geniusnet.gr` → public IP του VM.
+DNS: `A` records για `geniusnetsoc.gr` και `api.geniusnetsoc.gr` → public IP του VM.
 Firewall: `sudo ufw allow 80,443/tcp`.
 
 ---
@@ -75,10 +75,10 @@ SERVICE_ROLE_KEY=<generated>
 DASHBOARD_USERNAME=admin
 DASHBOARD_PASSWORD=<από πάνω>
 
-SITE_URL=https://portal.geniusnet.gr
-API_EXTERNAL_URL=https://api.geniusnet.gr
-SUPABASE_PUBLIC_URL=https://api.geniusnet.gr
-ADDITIONAL_REDIRECT_URLS=https://portal.geniusnet.gr/**
+SITE_URL=https://geniusnetsoc.gr
+API_EXTERNAL_URL=https://api.geniusnetsoc.gr
+SUPABASE_PUBLIC_URL=https://api.geniusnetsoc.gr
+ADDITIONAL_REDIRECT_URLS=https://geniusnetsoc.gr/**
 
 DISABLE_SIGNUP=false
 ENABLE_EMAIL_AUTOCONFIRM=false
@@ -87,9 +87,9 @@ STUDIO_DEFAULT_PROJECT=GeniusNet Portal
 # SMTP για auth emails
 SMTP_HOST=smtp.office365.com
 SMTP_PORT=587
-SMTP_USER=noreply@geniusnet.gr
+SMTP_USER=noreply@geniusnetsoc.gr
 SMTP_PASS=<app password>
-SMTP_ADMIN_EMAIL=admin@geniusnet.gr
+SMTP_ADMIN_EMAIL=admin@geniusnetsoc.gr
 SMTP_SENDER_NAME=GeniusNet Portal
 ```
 
@@ -162,7 +162,7 @@ done
 * Εναλλακτικά, δημιουργείς τους προγραμματιστικά με το Admin API:
 
 ```bash
-curl -X POST "https://api.geniusnet.gr/auth/v1/admin/users" \
+curl -X POST "https://api.geniusnetsoc.gr/auth/v1/admin/users" \
   -H "apikey: $SERVICE_ROLE_KEY" -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
   -H "Content-Type: application/json" \
   -d '{"email":"johnz@geniusnet.gr","email_confirm":true,"password":"<προσωρινό>"}'
@@ -232,7 +232,7 @@ LOVABLE_API_KEY=...         # ή δικό σου OpenAI/Anthropic key στο AI 
 Έλεγχος:
 
 ```bash
-curl -s "https://api.geniusnet.gr/functions/v1/softone-sync" -H "Authorization: Bearer $ANON_KEY" -i | head -20
+curl -s "https://api.geniusnetsoc.gr/functions/v1/softone-sync" -H "Authorization: Bearer $ANON_KEY" -i | head -20
 ```
 
 ---
@@ -242,12 +242,12 @@ curl -s "https://api.geniusnet.gr/functions/v1/softone-sync" -H "Authorization: 
 Στο `/opt/portal/.env`:
 
 ```env
-VITE_SUPABASE_URL="https://api.geniusnet.gr"
+VITE_SUPABASE_URL="https://api.geniusnetsoc.gr"
 VITE_SUPABASE_PUBLISHABLE_KEY="<ANON_KEY του self-hosted>"
 VITE_SUPABASE_PROJECT_ID="selfhosted"
 PORT=127.0.0.1:8080
-DOMAIN=portal.geniusnet.gr
-LETSENCRYPT_EMAIL=admin@geniusnet.gr
+DOMAIN=geniusnetsoc.gr
+LETSENCRYPT_EMAIL=admin@geniusnetsoc.gr
 ```
 
 ```bash
@@ -264,9 +264,9 @@ docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
 ```nginx
 server {
     listen 443 ssl;
-    server_name api.geniusnet.gr;
-    ssl_certificate     /etc/letsencrypt/live/api.geniusnet.gr/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.geniusnet.gr/privkey.pem;
+    server_name api.geniusnetsoc.gr;
+    ssl_certificate     /etc/letsencrypt/live/api.geniusnetsoc.gr/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.geniusnetsoc.gr/privkey.pem;
 
     client_max_body_size 50m;
 
@@ -283,7 +283,7 @@ server {
 }
 ```
 
-Cert: `sudo certbot certonly --webroot -w /var/www/certbot -d api.geniusnet.gr`.
+Cert: `sudo certbot certonly --webroot -w /var/www/certbot -d api.geniusnetsoc.gr`.
 
 ---
 
@@ -292,15 +292,15 @@ Cert: `sudo certbot certonly --webroot -w /var/www/certbot -d api.geniusnet.gr`.
 Το callback URL αλλάζει από το Lovable Cloud στο δικό σου API domain:
 
 ```text
-https://api.geniusnet.gr/auth/v1/callback
+https://api.geniusnetsoc.gr/auth/v1/callback
 ```
 
 ### 7.1 Google
 
 1. Google Cloud Console → **APIs & Services → Credentials → OAuth client (Web)**.
-2. **Authorized JavaScript origins**: `https://portal.geniusnet.gr`
-3. **Authorized redirect URIs**: `https://api.geniusnet.gr/auth/v1/callback`
-4. OAuth consent screen → Authorized domains: `geniusnet.gr`
+2. **Authorized JavaScript origins**: `https://geniusnetsoc.gr`
+3. **Authorized redirect URIs**: `https://api.geniusnetsoc.gr/auth/v1/callback`
+4. OAuth consent screen → Authorized domains: `geniusnetsoc.gr`
 5. Scopes: `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`
 
 Στο `/opt/stack/supabase/.env`:
@@ -309,13 +309,13 @@ https://api.geniusnet.gr/auth/v1/callback
 GOTRUE_EXTERNAL_GOOGLE_ENABLED=true
 GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=<client id>
 GOTRUE_EXTERNAL_GOOGLE_SECRET=<client secret>
-GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=https://api.geniusnet.gr/auth/v1/callback
+GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=https://api.geniusnetsoc.gr/auth/v1/callback
 ```
 
 ### 7.2 Azure AD / Entra ID
 
 1. Entra portal → **App registrations** → το app σου → **Authentication**.
-2. Redirect URI (Web): `https://api.geniusnet.gr/auth/v1/callback`
+2. Redirect URI (Web): `https://api.geniusnetsoc.gr/auth/v1/callback`
 3. **Certificates & secrets** → νέο client secret.
 4. **API permissions** (application): `User.Read.All`, `Group.Read.All`, `Device.Read.All`,
    `Reports.Read.All` (Copilot usage) → **Grant admin consent**.
@@ -325,7 +325,7 @@ GOTRUE_EXTERNAL_AZURE_ENABLED=true
 GOTRUE_EXTERNAL_AZURE_CLIENT_ID=<app id>
 GOTRUE_EXTERNAL_AZURE_SECRET=<secret>
 GOTRUE_EXTERNAL_AZURE_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
-GOTRUE_EXTERNAL_AZURE_REDIRECT_URI=https://api.geniusnet.gr/auth/v1/callback
+GOTRUE_EXTERNAL_AZURE_REDIRECT_URI=https://api.geniusnetsoc.gr/auth/v1/callback
 ```
 
 ```bash
@@ -369,10 +369,10 @@ Restore: `docker exec -i supabase-db pg_restore -U postgres -d postgres -c < dum
 | Έλεγχος | Εντολή / ενέργεια | Αναμενόμενο |
 |---|---|---|
 | DB | `psql … -c "select count(*) from public.customers"` | ο αριθμός των πελατών |
-| API | `curl -I https://api.geniusnet.gr/rest/v1/ -H "apikey: $ANON_KEY"` | 200 |
-| Auth | `curl https://api.geniusnet.gr/auth/v1/health` | `{"...":"GoTrue"}` |
-| Functions | `curl -i https://api.geniusnet.gr/functions/v1/softone-sync` | 401 (όχι 404) |
-| Frontend | άνοιξε `https://portal.geniusnet.gr` | login screen |
+| API | `curl -I https://api.geniusnetsoc.gr/rest/v1/ -H "apikey: $ANON_KEY"` | 200 |
+| Auth | `curl https://api.geniusnetsoc.gr/auth/v1/health` | `{"...":"GoTrue"}` |
+| Functions | `curl -i https://api.geniusnetsoc.gr/functions/v1/softone-sync` | 401 (όχι 404) |
+| Frontend | άνοιξε `https://geniusnetsoc.gr` | login screen |
 | SSO | Login με Google | redirect πίσω στο `/portal` |
 | Ρόλοι | Admin panel ορατό για `john.zontos@gmail.com` | όλα τα tabs |
 

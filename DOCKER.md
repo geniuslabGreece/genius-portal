@@ -83,7 +83,7 @@ sudo nano /etc/nginx/sites-available/portal
 ```nginx
 server {
     listen 80;
-    server_name portal.geniusnet.gr;
+    server_name geniusnetsoc.gr;
 
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -98,15 +98,15 @@ server {
 ```bash
 sudo ln -s /etc/nginx/sites-available/portal /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d portal.geniusnet.gr
+sudo certbot --nginx -d geniusnetsoc.gr
 ```
 
 ## 8. Τελευταίο βήμα: redirect URLs
 
 Στις ρυθμίσεις Authentication του backend πρόσθεσε:
 
-- Site URL: `https://portal.geniusnet.gr`
-- Redirect URLs: `https://portal.geniusnet.gr/**`
+- Site URL: `https://geniusnetsoc.gr`
+- Redirect URLs: `https://geniusnetsoc.gr/**`
 
 Το ίδιο και στο Azure AD App Registration (Redirect URI).
 Χωρίς αυτό το login με Google/Azure θα γυρνάει σε σφάλμα.
@@ -135,8 +135,8 @@ VITE_SUPABASE_PROJECT_ID="osshbsfuqawrljizeruq"
 VITE_SUPABASE_URL="https://osshbsfuqawrljizeruq.supabase.co"
 VITE_SUPABASE_PUBLISHABLE_KEY="sb_publishable_..."
 PORT=127.0.0.1:8080          # το app ακούει μόνο τοπικά, δημόσια βγαίνει ο proxy
-DOMAIN=portal.geniusnet.gr
-LETSENCRYPT_EMAIL=admin@geniusnet.gr
+DOMAIN=geniusnetsoc.gr
+LETSENCRYPT_EMAIL=admin@geniusnetsoc.gr
 ```
 
 Το DNS του `DOMAIN` πρέπει να δείχνει **A record** στην public IP του VM, και οι θύρες 80/443
@@ -149,7 +149,7 @@ docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
 ```
 
 Ο proxy ξεκινά αυτόματα σε **HTTP mode** όσο δεν υπάρχει πιστοποιητικό.
-Έλεγχος: `curl -I http://portal.geniusnet.gr` → 200.
+Έλεγχος: `curl -I http://geniusnetsoc.gr` → 200.
 
 ### 9.3 Έκδοση πιστοποιητικού
 
@@ -164,7 +164,7 @@ docker compose -f docker-compose.yml -f docker-compose.proxy.yml run --rm certbo
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.proxy.yml restart proxy
-curl -I https://portal.geniusnet.gr
+curl -I https://geniusnetsoc.gr
 ```
 
 Ο proxy ανιχνεύει το πιστοποιητικό και περνά σε HTTPS mode: HTTP → 301 redirect,
@@ -191,8 +191,8 @@ dcp up -d --build      # μετά από git pull
 ### 9.7 Μην ξεχάσεις τα Redirect URLs
 
 Στο backend (Authentication → URL Configuration):
-- Site URL: `https://portal.geniusnet.gr`
-- Redirect URLs: `https://portal.geniusnet.gr/**`
+- Site URL: `https://geniusnetsoc.gr`
+- Redirect URLs: `https://geniusnetsoc.gr/**`
 
 ### Troubleshooting proxy
 
