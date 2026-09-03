@@ -245,13 +245,18 @@ curl -s "https://api.geniusnetsoc.gr/functions/v1/softone-sync" -H "Authorizatio
 VITE_SUPABASE_URL="https://api.geniusnetsoc.gr"
 VITE_SUPABASE_PUBLISHABLE_KEY="<ANON_KEY του self-hosted>"
 VITE_SUPABASE_PROJECT_ID="selfhosted"
+
 PORT=127.0.0.1:8080
 DOMAIN=geniusnetsoc.gr
+API_DOMAIN=api.geniusnetsoc.gr
+SUPABASE_API_UPSTREAM=host.docker.internal:8000
 LETSENCRYPT_EMAIL=admin@geniusnetsoc.gr
 ```
 
 ```bash
 cd /opt/portal
+./docker/proxy/init-certbot.sh     # πρώτη φορά: εκδίδει cert για apex + www + api
+# επόμενες φορές:
 docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
 ```
 
@@ -259,31 +264,19 @@ docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
 
 ### 6.1 nginx για το `api.` subdomain
 
-Πρόσθεσε server block που κάνει proxy στο Kong (`127.0.0.1:8000`):
+Γίνεται αυτόματα από τον containerized proxy: το `docker/proxy/default.conf.template`
+έχει ήδη server block για το `${API_DOMAIN}` που κάνει proxy στο Kong
+(`${SUPABASE_API_UPSTREAM}`, default `host.docker.internal:8000`) με websockets και
+`client_max_body_size 50m`. Το frontend δεν εκτίθεται δημόσια — μόνο μέσω του proxy
+(`PORT=127.0.0.1:8080`).
 
-```nginx
-server {
-    listen 443 ssl;
-    server_name api.geniusnetsoc.gr;
-    ssl_certificate     /etc/letsencrypt/live/api.geniusnetsoc.gr/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.geniusnetsoc.gr/privkey.pem;
+DNS: A records για `@`, `www` και `api` προς το VM. Το cert για το `api.` εκδίδεται
+μαζί με τα υπόλοιπα από το `./docker/proxy/init-certbot.sh`.
 
-    client_max_body_size 50m;
+Αν το Supabase stack τρέχει σε δικό του docker network αντί για host ports, βάλε
+`SUPABASE_API_UPSTREAM=kong:8000` και σύνδεσε τον proxy σε εκείνο το network.
 
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;      # realtime websockets
-        proxy_set_header Connection "upgrade";
-    }
-}
-```
 
-Cert: `sudo certbot certonly --webroot -w /var/www/certbot -d api.geniusnetsoc.gr`.
 
 ---
 
