@@ -110,12 +110,20 @@ serve(async (req) => {
 
 
     if (!response.ok) {
+      const errText = await response.text();
+      console.error("AI provider error:", baseURL, model, response.status, errText.slice(0, 500));
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Πολλά αιτήματα — δοκιμάστε ξανά σε λίγο." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        const quota = errText.includes("insufficient_quota");
+        return new Response(
+          JSON.stringify({
+            error: quota
+              ? "Ο λογαριασμός OpenAI δεν έχει διαθέσιμο υπόλοιπο (insufficient_quota)."
+              : "Πολλά αιτήματα — δοκιμάστε ξανά σε λίγο.",
+          }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
+
       if (response.status === 402) {
         return new Response(JSON.stringify({ error: "Εξαντλήθηκαν τα διαθέσιμα credits για AI." }), {
           status: 402,
