@@ -16,7 +16,7 @@ const corsHeaders = {
 function makeGateway(apiKey: string, baseURL?: string) {
   const isLovable = !baseURL || baseURL.includes("gateway.lovable.dev");
   return createOpenAICompatible({
-    name: "lovable",
+    name: isLovable ? "lovable" : "custom",
     baseURL: baseURL || "https://ai.gateway.lovable.dev/v1",
     headers: isLovable
       ? {
@@ -28,6 +28,36 @@ function makeGateway(apiKey: string, baseURL?: string) {
         },
   });
 }
+
+// Επιλογή provider: (1) custom key από τη βάση, (2) OPENAI_API_KEY secret, (3) Lovable AI Gateway.
+export function resolveProvider(opts: {
+  customKey?: string | null;
+  customBaseUrl?: string | null;
+  openaiKey?: string | null;
+  lovableKey?: string | null;
+  model: string;
+}) {
+  const { customKey, customBaseUrl, openaiKey, lovableKey, model } = opts;
+  if (customKey) {
+    const baseURL = customBaseUrl || "https://api.openai.com/v1";
+    return { key: customKey, baseURL, model: normalizeModel(model, baseURL), provider: "custom" as const };
+  }
+  if (openaiKey) {
+    const baseURL = customBaseUrl || "https://api.openai.com/v1";
+    return { key: openaiKey, baseURL, model: normalizeModel(model, baseURL), provider: "openai" as const };
+  }
+  if (lovableKey) {
+    return { key: lovableKey, baseURL: undefined, model, provider: "lovable" as const };
+  }
+  return null;
+}
+
+// Το Lovable gateway θέλει "openai/gpt-5.5", το native OpenAI API θέλει "gpt-5.5".
+function normalizeModel(model: string, baseURL: string) {
+  if (baseURL.includes("api.openai.com") && model.startsWith("openai/")) return model.slice("openai/".length);
+  return model;
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
