@@ -72,19 +72,28 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") ?? null;
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? null;
 
-    let apiKey: string | null = settings?.custom_api_key ?? null;
-    let baseURL = settings?.custom_base_url || "https://api.openai.com/v1";
-    if (!apiKey && OPENAI_API_KEY) apiKey = OPENAI_API_KEY;
-    if (!apiKey) {
-      apiKey = LOVABLE_API_KEY;
-      baseURL = "https://ai.gateway.lovable.dev/v1";
+    let model = settings?.model || "google/gemini-3-flash-preview";
+    const openaiStyle = model.startsWith("openai/") || model.startsWith("gpt-");
+    const customKey = settings?.custom_api_key ?? null;
+
+    let apiKey: string | null = null;
+    let baseURL = "https://ai.gateway.lovable.dev/v1";
+    if (settings?.custom_base_url && (customKey || OPENAI_API_KEY)) {
+      apiKey = customKey || OPENAI_API_KEY;
+      baseURL = settings.custom_base_url;
+    } else if (openaiStyle && (customKey || OPENAI_API_KEY)) {
+      apiKey = customKey || OPENAI_API_KEY;
+      baseURL = "https://api.openai.com/v1";
+    } else {
+      apiKey = customKey || LOVABLE_API_KEY;
     }
     if (!apiKey) throw new Error("Δεν έχει ρυθμιστεί AI provider (OPENAI_API_KEY ή LOVABLE_API_KEY)");
 
-    let model = settings?.model || "google/gemini-3-flash-preview";
     if (baseURL.includes("api.openai.com") && model.startsWith("openai/")) {
       model = model.slice("openai/".length);
     }
+
+
 
     const response = await fetch(`${baseURL.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
@@ -101,24 +110,31 @@ serve(async (req) => {
 
 
     if (!response.ok) {
+      const errText = await response.text();
+      console.error("AI provider error:", baseURL, model, response.status, errText.slice(0, 500));
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Πολλά αιτήματα — δοκιμάστε ξανά σε λίγο." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        const quota = errText.includes("insufficient_quota");
+        return new Response(
+          JSON.stringify({
+            error: quota
+              ? "Ο λογαριασμός OpenAI δεν έχει διαθέσιμο υπόλοιπο (insufficient_quota)."
+              : "Πολλά αιτήματα — δοκιμάστε ξανά σε λίγο.",
+          }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
+
       if (response.status === 402) {
         return new Response(JSON.stringify({ error: "Εξαντλήθηκαν τα διαθέσιμα credits για AI." }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
+      return new Response(JSON.stringify({ error: `AI provider error (${response.status})` }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+
     }
 
     return new Response(response.body, {
