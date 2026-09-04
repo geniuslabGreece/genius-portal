@@ -71,13 +71,9 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) {
-      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY δεν έχει οριστεί" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY") ?? null;
+    const openaiKey = Deno.env.get("OPENAI_API_KEY") ?? null;
+
 
     const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: auth } } });
     const { data: userData } = await userClient.auth.getUser();
