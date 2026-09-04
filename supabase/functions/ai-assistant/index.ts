@@ -110,8 +110,22 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const modelId: string = settings?.model || "google/gemini-3-flash-preview";
-    const effectiveKey: string = settings?.custom_api_key || lovableKey;
-    const effectiveBaseURL: string | undefined = settings?.custom_base_url || undefined;
+    const resolved = resolveProvider({
+      customKey: settings?.custom_api_key ?? null,
+      customBaseUrl: settings?.custom_base_url ?? null,
+      openaiKey,
+      lovableKey,
+      model: modelId,
+    });
+    if (!resolved) {
+      return new Response(
+        JSON.stringify({ error: "Δεν έχει ρυθμιστεί AI provider (custom key, OPENAI_API_KEY ή LOVABLE_API_KEY)." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    const effectiveKey: string = resolved.key;
+    const effectiveBaseURL: string | undefined = resolved.baseURL;
+
     const customSystem: string | null = settings?.system_prompt || null;
     const temperature: number | null = typeof settings?.temperature === "number" ? settings.temperature : null;
     const enabledTools: string[] = Array.isArray(settings?.enabled_tools)
