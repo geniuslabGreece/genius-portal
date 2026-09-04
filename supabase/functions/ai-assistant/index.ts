@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
     );
 
     const gateway = makeGateway(effectiveKey, effectiveBaseURL);
-    const model = gateway(modelId);
+    const model = gateway(resolved.model);
 
     const enabledSourcesLine = enabledTools.length
       ? `Διαθέσιμες πηγές δεδομένων: ${enabledTools.join(", ")}. Χρησιμοποίησε ΜΟΝΟ αυτές — αν ο χρήστης ζητήσει κάτι εκτός, εξήγησέ του ότι δεν έχεις πρόσβαση.`

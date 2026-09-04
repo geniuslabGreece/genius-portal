@@ -57,21 +57,48 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    // Provider resolution: (1) custom key από ai_assistant_settings, (2) OPENAI_API_KEY, (3) Lovable AI Gateway.
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    const { data: settings } = await admin
+      .from("ai_assistant_settings")
+      .select("model, custom_api_key, custom_base_url")
+      .eq("singleton", true)
+      .maybeSingle();
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") ?? null;
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? null;
+
+    let apiKey: string | null = settings?.custom_api_key ?? null;
+    let baseURL = settings?.custom_base_url || "https://api.openai.com/v1";
+    if (!apiKey && OPENAI_API_KEY) apiKey = OPENAI_API_KEY;
+    if (!apiKey) {
+      apiKey = LOVABLE_API_KEY;
+      baseURL = "https://ai.gateway.lovable.dev/v1";
+    }
+    if (!apiKey) throw new Error("Δεν έχει ρυθμιστεί AI provider (OPENAI_API_KEY ή LOVABLE_API_KEY)");
+
+    let model = settings?.model || "google/gemini-3-flash-preview";
+    if (baseURL.includes("api.openai.com") && model.startsWith("openai/")) {
+      model = model.slice("openai/".length);
+    }
+
+    const response = await fetch(`${baseURL.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model,
         messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
         stream: true,
       }),
     });
+
 
     if (!response.ok) {
       if (response.status === 429) {
