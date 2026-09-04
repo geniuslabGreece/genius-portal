@@ -42,10 +42,12 @@ export function resolveProvider(opts: {
     const baseURL = customBaseUrl || "https://api.openai.com/v1";
     return { key: customKey, baseURL, model: normalizeModel(model, baseURL), provider: "custom" as const };
   }
-  if (openaiKey) {
+  // Το OPENAI_API_KEY χρησιμοποιείται μόνο για OpenAI-συμβατά μοντέλα (ή αν έχει οριστεί custom base URL).
+  if (openaiKey && (model.startsWith("openai/") || model.startsWith("gpt-") || customBaseUrl)) {
     const baseURL = customBaseUrl || "https://api.openai.com/v1";
     return { key: openaiKey, baseURL, model: normalizeModel(model, baseURL), provider: "openai" as const };
   }
+
   if (lovableKey) {
     return { key: lovableKey, baseURL: undefined, model, provider: "lovable" as const };
   }
