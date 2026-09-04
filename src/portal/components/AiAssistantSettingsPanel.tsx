@@ -251,12 +251,22 @@ export function AiAssistantSettingsPanel() {
         <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
           <div className="flex items-center gap-2">
             <KeyRound className="h-4 w-4 text-primary" />
-            <p className="text-sm font-semibold">Custom API Key (προαιρετικό)</p>
+            <p className="text-sm font-semibold">AI Provider &amp; API Key</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            Αν οριστεί, το edge function καλεί το επιλεγμένο μοντέλο μέσω αυτού του key αντί του Lovable AI Gateway.
-            Πρέπει το μοντέλο id να είναι συμβατό με τον provider σας. Παράδειγμα custom base URL: <code>https://openrouter.ai/api/v1</code>.
+            Σειρά προτεραιότητας: (1) το Custom API Key εδώ, (2) το secret <code>OPENAI_API_KEY</code> του backend,
+            (3) το ενσωματωμένο Lovable AI Gateway. Με OpenAI base URL (<code>https://api.openai.com/v1</code>) το πρόθεμα
+            <code>openai/</code> αφαιρείται αυτόματα από το model id.
           </p>
+          <div className="text-xs">
+            Ενεργός provider:{" "}
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+              {hasStoredKey
+                ? `Custom (${form.custom_base_url || "https://api.openai.com/v1"})`
+                : "OPENAI_API_KEY secret → αλλιώς Lovable AI Gateway"}
+            </span>
+          </div>
+
 
           <div>
             <Label className="text-xs">Κατάσταση</Label>
