@@ -16,7 +16,7 @@ const corsHeaders = {
 function makeGateway(apiKey: string, baseURL?: string) {
   const isLovable = !baseURL || baseURL.includes("gateway.lovable.dev");
   return createOpenAICompatible({
-    name: "lovable",
+    name: isLovable ? "lovable" : "custom",
     baseURL: baseURL || "https://ai.gateway.lovable.dev/v1",
     headers: isLovable
       ? {
@@ -28,6 +28,36 @@ function makeGateway(apiKey: string, baseURL?: string) {
         },
   });
 }
+
+// Επιλογή provider: (1) custom key από τη βάση, (2) OPENAI_API_KEY secret, (3) Lovable AI Gateway.
+export function resolveProvider(opts: {
+  customKey?: string | null;
+  customBaseUrl?: string | null;
+  openaiKey?: string | null;
+  lovableKey?: string | null;
+  model: string;
+}) {
+  const { customKey, customBaseUrl, openaiKey, lovableKey, model } = opts;
+  if (customKey) {
+    const baseURL = customBaseUrl || "https://api.openai.com/v1";
+    return { key: customKey, baseURL, model: normalizeModel(model, baseURL), provider: "custom" as const };
+  }
+  if (openaiKey) {
+    const baseURL = customBaseUrl || "https://api.openai.com/v1";
+    return { key: openaiKey, baseURL, model: normalizeModel(model, baseURL), provider: "openai" as const };
+  }
+  if (lovableKey) {
+    return { key: lovableKey, baseURL: undefined, model, provider: "lovable" as const };
+  }
+  return null;
+}
+
+// Το Lovable gateway θέλει "openai/gpt-5.5", το native OpenAI API θέλει "gpt-5.5".
+function normalizeModel(model: string, baseURL: string) {
+  if (baseURL.includes("api.openai.com") && model.startsWith("openai/")) return model.slice("openai/".length);
+  return model;
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -41,13 +71,9 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) {
-      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY δεν έχει οριστεί" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY") ?? null;
+    const openaiKey = Deno.env.get("OPENAI_API_KEY") ?? null;
+
 
     const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: auth } } });
     const { data: userData } = await userClient.auth.getUser();
@@ -84,8 +110,22 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const modelId: string = settings?.model || "google/gemini-3-flash-preview";
-    const effectiveKey: string = settings?.custom_api_key || lovableKey;
-    const effectiveBaseURL: string | undefined = settings?.custom_base_url || undefined;
+    const resolved = resolveProvider({
+      customKey: settings?.custom_api_key ?? null,
+      customBaseUrl: settings?.custom_base_url ?? null,
+      openaiKey,
+      lovableKey,
+      model: modelId,
+    });
+    if (!resolved) {
+      return new Response(
+        JSON.stringify({ error: "Δεν έχει ρυθμιστεί AI provider (custom key, OPENAI_API_KEY ή LOVABLE_API_KEY)." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    const effectiveKey: string = resolved.key;
+    const effectiveBaseURL: string | undefined = resolved.baseURL;
+
     const customSystem: string | null = settings?.system_prompt || null;
     const temperature: number | null = typeof settings?.temperature === "number" ? settings.temperature : null;
     const enabledTools: string[] = Array.isArray(settings?.enabled_tools)
@@ -189,7 +229,7 @@ Deno.serve(async (req) => {
     );
 
     const gateway = makeGateway(effectiveKey, effectiveBaseURL);
-    const model = gateway(modelId);
+    const model = gateway(resolved.model);
 
     const enabledSourcesLine = enabledTools.length
       ? `Διαθέσιμες πηγές δεδομένων: ${enabledTools.join(", ")}. Χρησιμοποίησε ΜΟΝΟ αυτές — αν ο χρήστης ζητήσει κάτι εκτός, εξήγησέ του ότι δεν έχεις πρόσβαση.`
