@@ -38,21 +38,27 @@ export function resolveProvider(opts: {
   model: string;
 }) {
   const { customKey, customBaseUrl, openaiKey, lovableKey, model } = opts;
-  if (customKey) {
-    const baseURL = customBaseUrl || "https://api.openai.com/v1";
-    return { key: customKey, baseURL, model: normalizeModel(model, baseURL), provider: "custom" as const };
-  }
-  // Το OPENAI_API_KEY χρησιμοποιείται μόνο για OpenAI-συμβατά μοντέλα (ή αν έχει οριστεί custom base URL).
-  if (openaiKey && (model.startsWith("openai/") || model.startsWith("gpt-") || customBaseUrl)) {
-    const baseURL = customBaseUrl || "https://api.openai.com/v1";
-    return { key: openaiKey, baseURL, model: normalizeModel(model, baseURL), provider: "openai" as const };
-  }
+  const openaiStyle = model.startsWith("openai/") || model.startsWith("gpt-");
 
-  if (lovableKey) {
-    return { key: lovableKey, baseURL: undefined, model, provider: "lovable" as const };
+  // 1) Ρητό custom base URL → πάντα ο custom provider (custom key ή OPENAI_API_KEY).
+  if (customBaseUrl) {
+    const key = customKey || openaiKey;
+    if (key) return { key, baseURL: customBaseUrl, model: normalizeModel(model, customBaseUrl), provider: "custom" as const };
   }
+  // 2) OpenAI μοντέλο → native OpenAI API με custom key ή OPENAI_API_KEY.
+  if (openaiStyle) {
+    const key = customKey || openaiKey;
+    if (key) {
+      const baseURL = "https://api.openai.com/v1";
+      return { key, baseURL, model: normalizeModel(model, baseURL), provider: "openai" as const };
+    }
+  }
+  // 3) Fallback: Lovable AI Gateway (με custom key αν υπάρχει, αλλιώς LOVABLE_API_KEY).
+  const key = customKey || lovableKey;
+  if (key) return { key, baseURL: undefined, model, provider: "lovable" as const };
   return null;
 }
+
 
 // Το Lovable gateway θέλει "openai/gpt-5.5", το native OpenAI API θέλει "gpt-5.5".
 function normalizeModel(model: string, baseURL: string) {
