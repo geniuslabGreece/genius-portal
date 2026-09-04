@@ -72,19 +72,24 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") ?? null;
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? null;
 
+    let model = settings?.model || "google/gemini-3-flash-preview";
+    const openaiCompatibleModel = model.startsWith("openai/") || model.startsWith("gpt-");
+
     let apiKey: string | null = settings?.custom_api_key ?? null;
     let baseURL = settings?.custom_base_url || "https://api.openai.com/v1";
-    if (!apiKey && OPENAI_API_KEY) apiKey = OPENAI_API_KEY;
+    if (!apiKey && OPENAI_API_KEY && (openaiCompatibleModel || settings?.custom_base_url)) {
+      apiKey = OPENAI_API_KEY;
+    }
     if (!apiKey) {
       apiKey = LOVABLE_API_KEY;
       baseURL = "https://ai.gateway.lovable.dev/v1";
     }
     if (!apiKey) throw new Error("Δεν έχει ρυθμιστεί AI provider (OPENAI_API_KEY ή LOVABLE_API_KEY)");
 
-    let model = settings?.model || "google/gemini-3-flash-preview";
     if (baseURL.includes("api.openai.com") && model.startsWith("openai/")) {
       model = model.slice("openai/".length);
     }
+
 
     const response = await fetch(`${baseURL.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
