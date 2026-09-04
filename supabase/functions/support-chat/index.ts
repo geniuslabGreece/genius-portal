@@ -73,22 +73,26 @@ serve(async (req) => {
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? null;
 
     let model = settings?.model || "google/gemini-3-flash-preview";
-    const openaiCompatibleModel = model.startsWith("openai/") || model.startsWith("gpt-");
+    const openaiStyle = model.startsWith("openai/") || model.startsWith("gpt-");
+    const customKey = settings?.custom_api_key ?? null;
 
-    let apiKey: string | null = settings?.custom_api_key ?? null;
-    let baseURL = settings?.custom_base_url || "https://api.openai.com/v1";
-    if (!apiKey && OPENAI_API_KEY && (openaiCompatibleModel || settings?.custom_base_url)) {
-      apiKey = OPENAI_API_KEY;
-    }
-    if (!apiKey) {
-      apiKey = LOVABLE_API_KEY;
-      baseURL = "https://ai.gateway.lovable.dev/v1";
+    let apiKey: string | null = null;
+    let baseURL = "https://ai.gateway.lovable.dev/v1";
+    if (settings?.custom_base_url && (customKey || OPENAI_API_KEY)) {
+      apiKey = customKey || OPENAI_API_KEY;
+      baseURL = settings.custom_base_url;
+    } else if (openaiStyle && (customKey || OPENAI_API_KEY)) {
+      apiKey = customKey || OPENAI_API_KEY;
+      baseURL = "https://api.openai.com/v1";
+    } else {
+      apiKey = customKey || LOVABLE_API_KEY;
     }
     if (!apiKey) throw new Error("Δεν έχει ρυθμιστεί AI provider (OPENAI_API_KEY ή LOVABLE_API_KEY)");
 
     if (baseURL.includes("api.openai.com") && model.startsWith("openai/")) {
       model = model.slice("openai/".length);
     }
+
 
 
     const response = await fetch(`${baseURL.replace(/\/$/, "")}/chat/completions`, {
