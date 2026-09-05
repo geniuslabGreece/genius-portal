@@ -92,6 +92,9 @@ serve(async (req) => {
     if (baseURL.includes("api.openai.com") && model.startsWith("openai/")) {
       model = model.slice("openai/".length);
     }
+    if (baseURL.includes("generativelanguage.googleapis.com") && model.startsWith("google/")) {
+      model = model.slice("google/".length);
+    }
 
 
 

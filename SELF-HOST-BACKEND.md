@@ -108,23 +108,32 @@ Studio: `http://<vm-ip>:8000` (basic auth με DASHBOARD_USERNAME/PASSWORD) — 
 
 ## 3. Μεταφορά schema
 
-Όλο το schema του portal υπάρχει ήδη ως migrations στο repo (`supabase/migrations/*.sql`, 27 αρχεία).
-Τρέχουν με τη σειρά:
+Όλο το schema του portal υπάρχει ήδη ως migrations στο repo (`supabase/migrations/*.sql`).
+Περίμενε πρώτα να γίνει healthy το self-hosted stack και τρέξε τα migrations **μέσα στο
+database container**, ώστε να παρακάμπτεται πλήρως ο Supavisor connection pooler:
 
 ```bash
 cd /opt/portal        # το repo του portal
-export PGPASSWORD='<POSTGRES_PASSWORD>'
-for f in supabase/migrations/*.sql; do
-  echo "→ $f"
-  psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$f"
-done
+chmod +x scripts/apply-self-hosted-migrations.sh
+./scripts/apply-self-hosted-migrations.sh
 ```
+
+Το script χρησιμοποιεί από προεπιλογή το container `supabase-db`, ταξινομεί τα migration
+αρχεία και σταματά στο πρώτο SQL error. Αν το container έχει άλλο όνομα:
+
+```bash
+DB_CONTAINER=<όνομα-db-container> ./scripts/apply-self-hosted-migrations.sh
+```
+
+Μην χρησιμοποιήσεις για DDL/migrations το `127.0.0.1:5432` αν αυτή η θύρα ανήκει στον
+Supavisor. Το μήνυμα `(ENOIDENTIFIER) no tenant identifier provided (external_id)` προέρχεται
+από τον pooler και όχι από κάποιο λάθος στο SQL migration.
 
 Έλεγχος:
 
 ```bash
-psql -h 127.0.0.1 -U postgres -d postgres -c "\dt public.*"
-psql -h 127.0.0.1 -U postgres -d postgres -c "select proname from pg_proc join pg_namespace n on n.oid=pronamespace where nspname='public';"
+docker exec supabase-db psql -X -U postgres -d postgres -c "\dt public.*"
+docker exec supabase-db psql -X -U postgres -d postgres -c "select proname from pg_proc join pg_namespace n on n.oid=pronamespace where nspname='public';"
 ```
 
 Πρέπει να δεις τους πίνακες (`profiles`, `customers`, `contracts`, `tickets`, `products`,
@@ -142,13 +151,13 @@ psql -h 127.0.0.1 -U postgres -d postgres -c "select proname from pg_proc join p
 
 ```bash
 cd /opt/data
-export PGPASSWORD='<POSTGRES_PASSWORD>'
-PSQL="psql -h 127.0.0.1 -U postgres -d postgres"
-
 for t in customers customer_email_domains products contracts \
          customer_azure_ad_settings customer_azure_ad_groups customer_azure_ad_role_mappings \
          softone_settings mail_server_settings ai_assistant_settings; do
-  $PSQL -c "\copy public.$t FROM '$t.csv' WITH CSV HEADER"
+  docker cp "$t.csv" "supabase-db:/tmp/$t.csv"
+  docker exec supabase-db psql -X -U postgres -d postgres \
+    -c "\copy public.$t FROM '/tmp/$t.csv' WITH CSV HEADER"
+  docker exec supabase-db rm -f "/tmp/$t.csv"
 done
 ```
 
@@ -361,7 +370,7 @@ Restore: `docker exec -i supabase-db pg_restore -U postgres -d postgres -c < dum
 
 | Έλεγχος | Εντολή / ενέργεια | Αναμενόμενο |
 |---|---|---|
-| DB | `psql … -c "select count(*) from public.customers"` | ο αριθμός των πελατών |
+| DB | `docker exec supabase-db psql -X -U postgres -d postgres -c "select count(*) from public.customers"` | ο αριθμός των πελατών |
 | API | `curl -I https://api.geniusnetsoc.gr/rest/v1/ -H "apikey: $ANON_KEY"` | 200 |
 | Auth | `curl https://api.geniusnetsoc.gr/auth/v1/health` | `{"...":"GoTrue"}` |
 | Functions | `curl -i https://api.geniusnetsoc.gr/functions/v1/softone-sync` | 401 (όχι 404) |
@@ -377,6 +386,7 @@ Restore: `docker exec -i supabase-db pg_restore -U postgres -d postgres -c < dum
 |---|---|
 | Λευκή σελίδα μετά το build | Λάθος/κενά `VITE_SUPABASE_*` → διόρθωσε `.env` και `--build` |
 | `Invalid API key` | Το ANON_KEY δεν έχει υπογραφεί με το ίδιο `JWT_SECRET` |
+| `(ENOIDENTIFIER) no tenant identifier provided` | Η εντολή πήγε στον Supavisor. Τρέξε `./scripts/apply-self-hosted-migrations.sh`, που συνδέεται απευθείας στο database container |
 | Login redirect σε λάθος domain | `SITE_URL` / `ADDITIONAL_REDIRECT_URLS` στο stack `.env` |
 | `redirect_uri_mismatch` | Το URI στο Google/Azure δεν είναι ακριβώς `https://api.…/auth/v1/callback` |
 | RLS: «δεν βλέπω δεδομένα» | Δεν έτρεξαν όλες οι migrations (λείπουν GRANTs/policies) |
