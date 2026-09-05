@@ -40,6 +40,21 @@ const TOOL_OPTIONS: { key: string; label: string; desc: string }[] = [
   { key: "getMyTickets", label: "Tickets υποστήριξης", desc: "Ιστορικό & ανοιχτά αιτήματα" },
 ];
 
+const PROVIDER_PRESETS = {
+  openai: {
+    label: "OpenAI API",
+    baseUrl: "https://api.openai.com/v1",
+    model: "openai/gpt-5-mini",
+    keyPlaceholder: "sk-...",
+  },
+  gemini: {
+    label: "Google Gemini API",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    model: "google/gemini-2.5-flash",
+    keyPlaceholder: "Gemini API key",
+  },
+} as const;
+
 interface Settings {
   id?: string;
   model: string;
@@ -141,6 +156,7 @@ export function AiAssistantSettingsPanel() {
   }
 
   const hasStoredKey = !!form.custom_api_key;
+  const isGeminiDirect = form.custom_base_url?.includes("generativelanguage.googleapis.com") ?? false;
 
   return (
     <Card className="p-6 space-y-6">
@@ -254,10 +270,22 @@ export function AiAssistantSettingsPanel() {
             <p className="text-sm font-semibold">AI Provider &amp; API Key</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            Σειρά προτεραιότητας: (1) το Custom API Key εδώ, (2) το secret <code>OPENAI_API_KEY</code> του backend,
-            (3) το ενσωματωμένο Lovable AI Gateway. Με OpenAI base URL (<code>https://api.openai.com/v1</code>) το πρόθεμα
-            <code>openai/</code> αφαιρείται αυτόματα από το model id.
+            Μπορείς να χρησιμοποιήσεις OpenAI API key, Google Gemini API key ή άλλον OpenAI-compatible provider.
+            Οι συνδρομές Gemini Advanced και Microsoft 365 Copilot δεν περιλαμβάνουν από μόνες τους API key.
           </p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(PROVIDER_PRESETS).map(([key, preset]) => (
+              <Button
+                key={key}
+                type="button"
+                size="sm"
+                variant={form.custom_base_url === preset.baseUrl ? "default" : "outline"}
+                onClick={() => setForm({ ...form, custom_base_url: preset.baseUrl, model: preset.model })}
+              >
+                {preset.label}
+              </Button>
+            ))}
+          </div>
           <div className="text-xs">
             Ενεργός provider:{" "}
             <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
@@ -294,7 +322,11 @@ export function AiAssistantSettingsPanel() {
             <Input
               type="password"
               value={newKey}
-              placeholder={hasStoredKey ? "Άφησέ το κενό για να μην αλλάξει" : "sk-..."}
+              placeholder={hasStoredKey
+                ? "Άφησέ το κενό για να μην αλλάξει"
+                : isGeminiDirect
+                  ? PROVIDER_PRESETS.gemini.keyPlaceholder
+                  : PROVIDER_PRESETS.openai.keyPlaceholder}
               onChange={(e) => setNewKey(e.target.value)}
             />
           </div>
@@ -307,7 +339,7 @@ export function AiAssistantSettingsPanel() {
               onChange={(e) => setForm({ ...form, custom_base_url: e.target.value })}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              Άφησέ το κενό για default (<code>https://ai.gateway.lovable.dev/v1</code> όταν χρησιμοποιείται Lovable AI, αλλιώς OpenAI).
+              Gemini: <code>https://generativelanguage.googleapis.com/v1beta/openai</code>. OpenAI: <code>https://api.openai.com/v1</code>.
             </p>
           </div>
 

@@ -63,6 +63,9 @@ export function resolveProvider(opts: {
 // Το Lovable gateway θέλει "openai/gpt-5.5", το native OpenAI API θέλει "gpt-5.5".
 function normalizeModel(model: string, baseURL: string) {
   if (baseURL.includes("api.openai.com") && model.startsWith("openai/")) return model.slice("openai/".length);
+  if (baseURL.includes("generativelanguage.googleapis.com") && model.startsWith("google/")) {
+    return model.slice("google/".length);
+  }
   return model;
 }
 
