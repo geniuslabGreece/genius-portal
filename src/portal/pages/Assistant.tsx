@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "portal:assistant:messages:v1";
-const FN_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/ai-assistant`;
+const FN_URL = `${import.meta.env.VITE_SUPABASE_URL.replace(/\/$/, "")}/functions/v1/ai-assistant`;
 
 function loadInitial(): UIMessage[] {
   if (typeof window === "undefined") return [];
