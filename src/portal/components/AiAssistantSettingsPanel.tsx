@@ -167,7 +167,7 @@ export function AiAssistantSettingsPanel() {
         <div>
           <h3 className="font-display text-lg font-semibold">AI Σύμβουλος — Ρυθμίσεις</h3>
           <p className="text-sm text-muted-foreground">
-            Επιλέξτε μοντέλο και προαιρετικά custom API key/endpoint. Χωρίς custom key, χρησιμοποιείται το ενσωματωμένο Lovable AI Gateway.
+            Επιλέξτε μοντέλο και προαιρετικά custom API key/endpoint. Στο self-hosted περιβάλλον απαιτείται δικό σας API key.
           </p>
         </div>
       </div>
@@ -290,8 +290,10 @@ export function AiAssistantSettingsPanel() {
             Ενεργός provider:{" "}
             <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
               {hasStoredKey
-                ? `Custom (${form.custom_base_url || "https://api.openai.com/v1"})`
-                : "OPENAI_API_KEY secret → αλλιώς Lovable AI Gateway"}
+                ? isGeminiDirect
+                  ? "Google Gemini API"
+                  : `Custom (${form.custom_base_url || "https://api.openai.com/v1"})`
+                : "Backend secret → αλλιώς Lovable AI Gateway"}
             </span>
           </div>
 
@@ -312,7 +314,7 @@ export function AiAssistantSettingsPanel() {
                   </Button>
                 </>
               ) : (
-                <span className="text-xs text-muted-foreground">Χρήση Lovable AI Gateway (built-in).</span>
+                <span className="text-xs text-muted-foreground">Δεν έχει αποθηκευτεί key σε αυτή την οθόνη.</span>
               )}
             </div>
           </div>

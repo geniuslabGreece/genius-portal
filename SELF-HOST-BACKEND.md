@@ -119,7 +119,8 @@ chmod +x scripts/apply-self-hosted-migrations.sh
 ```
 
 Το script χρησιμοποιεί από προεπιλογή το container `supabase-db`, ταξινομεί τα migration
-αρχεία και σταματά στο πρώτο SQL error. Αν το container έχει άλλο όνομα:
+αρχεία, παραλείπει όσα έχουν ήδη εφαρμοστεί και σταματά στο πρώτο SQL error χωρίς να αφήνει
+το συγκεκριμένο migration μισοτελειωμένο. Αν το container έχει άλλο όνομα:
 
 ```bash
 DB_CONTAINER=<όνομα-db-container> ./scripts/apply-self-hosted-migrations.sh
@@ -181,7 +182,10 @@ curl -X POST "https://api.geniusnetsoc.gr/auth/v1/admin/users" \
 **αφού** αντιστοιχίσεις τα νέα `user_id` (τα παλιά UUID δεν διατηρούνται):
 
 ```bash
-$PSQL -c "\copy public.profiles FROM 'profiles.csv' WITH CSV HEADER"   # μόνο αν κράτησες τα ίδια ids
+docker cp profiles.csv supabase-db:/tmp/profiles.csv
+docker exec supabase-db psql -X -U postgres -d postgres \
+  -c "\copy public.profiles FROM '/tmp/profiles.csv' WITH CSV HEADER"   # μόνο αν κράτησες τα ίδια ids
+docker exec supabase-db rm -f /tmp/profiles.csv
 ```
 
 Ο βασικός admin πάντως εξασφαλίζεται με το χέρι:
@@ -222,7 +226,7 @@ docker compose restart functions
 ```env
 MICROSOFT_SHAREPOINT_API_KEY=...
 AZURE_AD_ENC_KEY=...        # openssl rand -base64 32
-LOVABLE_API_KEY=...         # ή δικό σου OpenAI/Anthropic key στο AI Bot tab
+OPENAI_API_KEY=...          # προαιρετικό fallback για OpenAI
 ```
 
 και στο `docker-compose.yml` του stack, στο service `functions`, πέρασέ τα:
@@ -232,11 +236,13 @@ LOVABLE_API_KEY=...         # ή δικό σου OpenAI/Anthropic key στο AI 
     environment:
       MICROSOFT_SHAREPOINT_API_KEY: ${MICROSOFT_SHAREPOINT_API_KEY}
       AZURE_AD_ENC_KEY: ${AZURE_AD_ENC_KEY}
-      LOVABLE_API_KEY: ${LOVABLE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
 ```
 
-> Το `LOVABLE_API_KEY` (AI Gateway) δεν λειτουργεί εκτός Lovable. Στο self-hosted βάλε δικό σου
-> κλειδί μοντέλου από το **Admin → AI Bot** tab.
+> Το `LOVABLE_API_KEY` (AI Gateway) δεν λειτουργεί εκτός Lovable. Στο self-hosted διάλεξε
+> provider και βάλε το δικό σου API key από το **Admin → AI Bot** tab. Για Google Gemini,
+> επίλεξε **Google Gemini API**, βάλε Gemini API key και αποθήκευσε. Η συνδρομή Gemini Advanced
+> ή Microsoft 365 Copilot δεν αποτελεί API key και δεν μπορεί να χρησιμοποιηθεί απευθείας.
 
 Έλεγχος:
 
