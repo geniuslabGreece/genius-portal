@@ -1,23 +1,19 @@
-# Πλήρες self-hosting (frontend + backend) σε Linux VM
+# Πλήρες self-hosting (frontend + backend) σε Linux VM — από το μηδέν
 
-Σενάριο 2: **όλα τρέχουν στο VM σου** — database, auth, storage, edge functions και το portal.
-Το Lovable Cloud δεν χρησιμοποιείται πλέον από το app· μένει μόνο ως πηγή για το αρχικό export.
+Όλα τρέχουν στο VM σου: PostgreSQL, Auth (GoTrue), REST, Realtime, Storage, Edge Functions
+και το portal. Το Lovable Cloud χρησιμοποιείται μόνο για το αρχικό export δεδομένων.
 
-> Ελάχιστες απαιτήσεις: **4 vCPU / 8 GB RAM / 60 GB disk**, Ubuntu 22.04 ή 24.04,
-> ένα domain (π.χ. `geniusnetsoc.gr`) και ένα subdomain για το API (π.χ. `api.geniusnetsoc.gr`).
-
----
-
-## 0. Επισκόπηση
+> **Απαιτήσεις VM:** Ubuntu 22.04/24.04, **4 vCPU / 8 GB RAM / 60 GB disk**,
+> public IP, domain `geniusnetsoc.gr` + subdomain `api.geniusnetsoc.gr`.
 
 ```text
                  ┌───────────────────────────────┐
-  portal.…gr ───▶│ nginx proxy (80/443, certbot) │
-                 └──────┬────────────────┬───────┘
+  geniusnetsoc.gr│ nginx proxy (80/443, certbot) │
+             ───▶└──────┬────────────────┬───────┘
                         │                │
              ┌──────────▼──────┐   ┌─────▼─────────────────────────┐
              │ portal (React)  │   │ Supabase stack (Kong :8000)   │
-             │ Dockerfile      │   │ db · auth · rest · realtime   │
+             │ Docker + nginx  │   │ db · auth · rest · realtime   │
              └─────────────────┘   │ storage · functions · studio  │
   api.…gr ─────────────────────────▶ meta · imgproxy · analytics   │
                                    └───────────────────────────────┘
@@ -25,211 +21,163 @@
 
 ---
 
-## 1. Προαπαιτούμενα στο VM
+## ΒΗΜΑ 0 — Τι εγκαθιστούμε στο VM
+
+| Πακέτο | Γιατί |
+|---|---|
+| `docker-ce` + `docker compose plugin` | τρέχει και το Supabase stack και το portal |
+| `git` | κατέβασμα του repo |
+| `curl`, `ca-certificates` | downloads / health checks |
+| `openssl` | παραγωγή passwords & JWT secret |
+| `jq` | επεξεργασία JSON (keys, API tests) |
+| `postgresql-client` | `psql`/`pg_dump` από το host (προαιρετικό, τα migrations τρέχουν μέσα στο container) |
+| `python3` | παραγωγή ANON/SERVICE_ROLE JWT (script πιο κάτω) |
+| `ufw` | firewall |
 
 ```bash
+# Docker
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker $USER && newgrp docker
-sudo apt update && sudo apt install -y git postgresql-client jq openssl
+docker --version && docker compose version
+
+# Υπόλοιπα
+sudo apt update
+sudo apt install -y git curl ca-certificates openssl jq postgresql-client python3 python3-pip ufw
+
+# Firewall
+sudo ufw allow OpenSSH
+sudo ufw allow 80,443/tcp
+sudo ufw --force enable
 ```
 
-DNS: `A` records για `geniusnetsoc.gr` και `api.geniusnetsoc.gr` → public IP του VM.
-Firewall: `sudo ufw allow 80,443/tcp`.
+**DNS (πριν το certbot):** A records → public IP του VM για `@`, `www`, `api`.
+
+```bash
+dig +short geniusnetsoc.gr www.geniusnetsoc.gr api.geniusnetsoc.gr
+```
 
 ---
 
-## 2. Το Supabase stack
+## ΒΗΜΑ 1 — Κατέβασμα των δύο repos
 
 ```bash
-sudo mkdir -p /opt/stack && sudo chown -R $USER:$USER /opt/stack
+sudo mkdir -p /opt/portal /opt/stack && sudo chown -R $USER:$USER /opt/portal /opt/stack
+
+# 1α. Το portal (GitHub → Connect to GitHub από το Lovable)
+git clone https://github.com/<org>/<repo>.git /opt/portal
+
+# 1β. Το επίσημο Supabase docker stack
 cd /opt/stack
 git clone --depth 1 https://github.com/supabase/supabase.git supabase-src
 cp -r supabase-src/docker supabase
-cd supabase
-cp .env.example .env
+cd supabase && cp .env.example .env
 ```
 
-### 2.1 Κλειδιά
+---
+
+## ΒΗΜΑ 2 — Παραγωγή κλειδιών
 
 ```bash
-# Postgres password
-openssl rand -hex 24
-# JWT secret (>= 32 χαρακτήρες)
-openssl rand -hex 32
-# Dashboard password
-openssl rand -base64 18
+export POSTGRES_PASSWORD=$(openssl rand -hex 24)
+export JWT_SECRET=$(openssl rand -hex 32)          # >= 32 χαρακτήρες
+export DASHBOARD_PASSWORD=$(openssl rand -base64 18)
+export AZURE_AD_ENC_KEY=$(openssl rand -base64 32) # AES-GCM key για τα Azure secrets
+export SECRET_KEY_BASE=$(openssl rand -hex 32)
+export VAULT_ENC_KEY=$(openssl rand -hex 16)       # ακριβώς 32 χαρακτήρες
 ```
 
-Με βάση το JWT secret φτιάξε **ANON_KEY** και **SERVICE_ROLE_KEY** από το
-[Supabase JWT generator](https://supabase.com/docs/guides/self-hosting#api-keys)
-(roles: `anon` και `service_role`, exp ~10 χρόνια).
+### ANON_KEY & SERVICE_ROLE_KEY (υπογεγραμμένα με το ίδιο JWT_SECRET)
 
-### 2.2 `.env` του stack (τα σημαντικά)
+```bash
+pip3 install --quiet pyjwt
+python3 - <<'PY' | tee /opt/stack/keys.txt
+import os, time, jwt
+s = os.environ["JWT_SECRET"]; iat = int(time.time()); exp = iat + 10*365*24*3600
+for role in ("anon", "service_role"):
+    print(role.upper()+"_KEY=" + jwt.encode({"role":role,"iss":"supabase","iat":iat,"exp":exp}, s, algorithm="HS256"))
+PY
+chmod 600 /opt/stack/keys.txt
+```
+
+> Κράτα το `JWT_SECRET` — αν αλλάξει, όλα τα keys ακυρώνονται (`Invalid API key`).
+
+---
+
+## ΒΗΜΑ 3 — `/opt/stack/supabase/.env` (backend)
+
+Άνοιξε το αρχείο και βάλε **αυτές** τις τιμές (τα υπόλοιπα του `.env.example` μένουν ως έχουν):
 
 ```env
-POSTGRES_PASSWORD=<από πάνω>
-JWT_SECRET=<από πάνω>
-ANON_KEY=<generated>
-SERVICE_ROLE_KEY=<generated>
+############ Database ############
+POSTGRES_PASSWORD=<POSTGRES_PASSWORD>
+POSTGRES_HOST=db
+POSTGRES_DB=postgres
+POSTGRES_PORT=5432
 
+############ API keys ############
+JWT_SECRET=<JWT_SECRET>
+ANON_KEY=<ANON_KEY>
+SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY>
+SECRET_KEY_BASE=<SECRET_KEY_BASE>
+VAULT_ENC_KEY=<VAULT_ENC_KEY>
+
+############ Studio (μην το εκθέσεις δημόσια) ############
 DASHBOARD_USERNAME=admin
-DASHBOARD_PASSWORD=<από πάνω>
+DASHBOARD_PASSWORD=<DASHBOARD_PASSWORD>
+STUDIO_DEFAULT_ORGANIZATION=GeniusNet
+STUDIO_DEFAULT_PROJECT=GeniusNet Portal
 
+############ URLs — ΚΡΙΣΙΜΑ για το login ############
 SITE_URL=https://geniusnetsoc.gr
 API_EXTERNAL_URL=https://api.geniusnetsoc.gr
 SUPABASE_PUBLIC_URL=https://api.geniusnetsoc.gr
-ADDITIONAL_REDIRECT_URLS=https://geniusnetsoc.gr/**
+ADDITIONAL_REDIRECT_URLS=https://geniusnetsoc.gr/**,https://www.geniusnetsoc.gr/**
 
+############ Auth ############
 DISABLE_SIGNUP=false
+ENABLE_EMAIL_SIGNUP=true
 ENABLE_EMAIL_AUTOCONFIRM=false
-STUDIO_DEFAULT_PROJECT=GeniusNet Portal
+ENABLE_PHONE_SIGNUP=false
+ENABLE_PHONE_AUTOCONFIRM=false
+JWT_EXPIRY=3600
+MAILER_URLPATHS_CONFIRMATION=/auth/v1/verify
+MAILER_URLPATHS_RECOVERY=/auth/v1/verify
+MAILER_URLPATHS_INVITE=/auth/v1/verify
+MAILER_URLPATHS_EMAIL_CHANGE=/auth/v1/verify
 
-# SMTP για auth emails
+############ Google OAuth ############
+GOTRUE_EXTERNAL_GOOGLE_ENABLED=true
+GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=<google client id>
+GOTRUE_EXTERNAL_GOOGLE_SECRET=<google client secret>
+GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=https://api.geniusnetsoc.gr/auth/v1/callback
+
+############ Azure / Entra ID OAuth ############
+GOTRUE_EXTERNAL_AZURE_ENABLED=true
+GOTRUE_EXTERNAL_AZURE_CLIENT_ID=<application (client) id>
+GOTRUE_EXTERNAL_AZURE_SECRET=<client secret value>
+GOTRUE_EXTERNAL_AZURE_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
+GOTRUE_EXTERNAL_AZURE_REDIRECT_URI=https://api.geniusnetsoc.gr/auth/v1/callback
+
+############ SMTP (auth emails) ############
 SMTP_HOST=smtp.office365.com
 SMTP_PORT=587
 SMTP_USER=noreply@geniusnetsoc.gr
 SMTP_PASS=<app password>
 SMTP_ADMIN_EMAIL=admin@geniusnetsoc.gr
 SMTP_SENDER_NAME=GeniusNet Portal
+
+############ Secrets των edge functions ############
+MICROSOFT_SHAREPOINT_API_KEY=<sharepoint key>
+AZURE_AD_ENC_KEY=<AZURE_AD_ENC_KEY>
+OPENAI_API_KEY=<sk-...>            # ή GEMINI key, δες ΒΗΜΑ 8
+FUNCTIONS_VERIFY_JWT=true
+
+############ Kong / ports ############
+KONG_HTTP_PORT=8000
+KONG_HTTPS_PORT=8443
 ```
 
-### 2.3 Εκκίνηση
-
-```bash
-docker compose pull
-docker compose up -d
-docker compose ps          # όλα healthy
-curl -I http://localhost:8000/auth/v1/health
-```
-
-Studio: `http://<vm-ip>:8000` (basic auth με DASHBOARD_USERNAME/PASSWORD) — **μην το αφήσεις εκτεθειμένο**.
-
----
-
-## 3. Μεταφορά schema
-
-Όλο το schema του portal υπάρχει ήδη ως migrations στο repo (`supabase/migrations/*.sql`).
-Περίμενε πρώτα να γίνει healthy το self-hosted stack και τρέξε τα migrations **μέσα στο
-database container**, ώστε να παρακάμπτεται πλήρως ο Supavisor connection pooler:
-
-```bash
-cd /opt/portal        # το repo του portal
-chmod +x scripts/apply-self-hosted-migrations.sh
-./scripts/apply-self-hosted-migrations.sh
-```
-
-Το script χρησιμοποιεί από προεπιλογή το container `supabase-db`, ταξινομεί τα migration
-αρχεία, παραλείπει όσα έχουν ήδη εφαρμοστεί και σταματά στο πρώτο SQL error χωρίς να αφήνει
-το συγκεκριμένο migration μισοτελειωμένο. Αν το container έχει άλλο όνομα:
-
-```bash
-DB_CONTAINER=<όνομα-db-container> ./scripts/apply-self-hosted-migrations.sh
-```
-
-Μην χρησιμοποιήσεις για DDL/migrations το `127.0.0.1:5432` αν αυτή η θύρα ανήκει στον
-Supavisor. Το μήνυμα `(ENOIDENTIFIER) no tenant identifier provided (external_id)` προέρχεται
-από τον pooler και όχι από κάποιο λάθος στο SQL migration.
-
-Έλεγχος:
-
-```bash
-docker exec supabase-db psql -X -U postgres -d postgres -c "\dt public.*"
-docker exec supabase-db psql -X -U postgres -d postgres -c "select proname from pg_proc join pg_namespace n on n.oid=pronamespace where nspname='public';"
-```
-
-Πρέπει να δεις τους πίνακες (`profiles`, `customers`, `contracts`, `tickets`, `products`,
-`user_roles`, `customer_azure_ad_*`, `softone_settings`, `mail_server_settings`,
-`ai_assistant_settings`, …) και τα functions `has_role`, `is_admin`, `user_has_customer_access` κ.λπ.
-
----
-
-## 4. Μεταφορά δεδομένων
-
-Στο Lovable: **Cloud → Advanced settings → Export data** (μόνο export υπάρχει, όχι import).
-Κατέβασε τα CSV και ανέβασέ τα στο VM.
-
-Σειρά φόρτωσης (λόγω foreign keys):
-
-```bash
-cd /opt/data
-for t in customers customer_email_domains products contracts \
-         customer_azure_ad_settings customer_azure_ad_groups customer_azure_ad_role_mappings \
-         softone_settings mail_server_settings ai_assistant_settings; do
-  docker cp "$t.csv" "supabase-db:/tmp/$t.csv"
-  docker exec supabase-db psql -X -U postgres -d postgres \
-    -c "\copy public.$t FROM '/tmp/$t.csv' WITH CSV HEADER"
-  docker exec supabase-db rm -f "/tmp/$t.csv"
-done
-```
-
-### 4.1 Χρήστες (auth.users)
-
-Οι χρήστες **δεν** μεταφέρονται με CSV — δεν έχεις πρόσβαση στα password hashes του Cloud.
-Δύο επιλογές:
-
-* **Συνιστάται:** αφήνεις τους χρήστες να ξανακάνουν login με Google/Azure SSO. Το trigger
-  `handle_new_user` δημιουργεί αυτόματα profile + ρόλο (`@geniusnet.gr` → admin).
-* Εναλλακτικά, δημιουργείς τους προγραμματιστικά με το Admin API:
-
-```bash
-curl -X POST "https://api.geniusnetsoc.gr/auth/v1/admin/users" \
-  -H "apikey: $SERVICE_ROLE_KEY" -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"johnz@geniusnet.gr","email_confirm":true,"password":"<προσωρινό>"}'
-```
-
-Μετά τη δημιουργία, φόρτωσε `profiles.csv`, `user_roles.csv`, `user_customer_admins.csv`
-**αφού** αντιστοιχίσεις τα νέα `user_id` (τα παλιά UUID δεν διατηρούνται):
-
-```bash
-docker cp profiles.csv supabase-db:/tmp/profiles.csv
-docker exec supabase-db psql -X -U postgres -d postgres \
-  -c "\copy public.profiles FROM '/tmp/profiles.csv' WITH CSV HEADER"   # μόνο αν κράτησες τα ίδια ids
-docker exec supabase-db rm -f /tmp/profiles.csv
-```
-
-Ο βασικός admin πάντως εξασφαλίζεται με το χέρι:
-
-```sql
-insert into public.user_roles (user_id, role)
-select id, 'admin' from auth.users where email = 'john.zontos@gmail.com'
-on conflict do nothing;
-```
-
-### 4.2 Storage bucket `mygn`
-
-```sql
-insert into storage.buckets (id, name, public) values ('mygn','mygn',false)
-on conflict (id) do nothing;
-```
-
-Τα αρχεία κατεβαίνουν από το Cloud και ανεβαίνουν ξανά μέσω Studio ή Storage API.
-
----
-
-## 5. Edge functions
-
-Οι 9 functions (`ai-assistant`, `azure-ad-sync`, `mcp`, `notify-ticket`,
-`sharepoint-import-customers`, `sharepoint-sync-worklogs`, `sharepoint-worklogs`,
-`softone-sync`, `support-chat`) τρέχουν στο container `functions` του stack:
-
-```bash
-cp -r /opt/portal/supabase/functions/* /opt/stack/supabase/volumes/functions/
-docker compose restart functions
-```
-
-### 5.1 Secrets των functions
-
-Στο self-hosted δεν υπάρχει secrets UI — μπαίνουν ως env vars.
-Πρόσθεσε στο `/opt/stack/supabase/.env`:
-
-```env
-MICROSOFT_SHAREPOINT_API_KEY=...
-AZURE_AD_ENC_KEY=...        # openssl rand -base64 32
-OPENAI_API_KEY=...          # προαιρετικό fallback για OpenAI
-```
-
-και στο `docker-compose.yml` του stack, στο service `functions`, πέρασέ τα:
+Στο `docker-compose.yml` του stack, στο service `functions`, πέρασε τα secrets:
 
 ```yaml
   functions:
@@ -239,174 +187,278 @@ OPENAI_API_KEY=...          # προαιρετικό fallback για OpenAI
       OPENAI_API_KEY: ${OPENAI_API_KEY}
 ```
 
-> Το `LOVABLE_API_KEY` (AI Gateway) δεν λειτουργεί εκτός Lovable. Στο self-hosted διάλεξε
-> provider και βάλε το δικό σου API key από το **Admin → AI Bot** tab. Για Google Gemini,
-> επίλεξε **Google Gemini API**, βάλε Gemini API key και αποθήκευσε. Η συνδρομή Gemini Advanced
-> ή Microsoft 365 Copilot δεν αποτελεί API key και δεν μπορεί να χρησιμοποιηθεί απευθείας.
-
-Έλεγχος:
+Εκκίνηση:
 
 ```bash
-curl -s "https://api.geniusnetsoc.gr/functions/v1/softone-sync" -H "Authorization: Bearer $ANON_KEY" -i | head -20
+cd /opt/stack/supabase
+docker compose pull
+docker compose up -d
+docker compose ps                      # όλα healthy
+curl -s http://localhost:8000/auth/v1/health
 ```
 
 ---
 
-## 6. Frontend προς το νέο backend
+## ΒΗΜΑ 4 — Schema (migrations)
 
-Στο `/opt/portal/.env`:
+```bash
+cd /opt/portal
+chmod +x scripts/apply-self-hosted-migrations.sh
+./scripts/apply-self-hosted-migrations.sh          # DB_CONTAINER=<name> αν διαφέρει
+```
+
+Τρέχει **μέσα** στο `supabase-db` container (παρακάμπτει τον Supavisor), κρατά ιστορικό στο
+`portal_migrations.applied_migrations`, `--single-transaction`, σταματά στο πρώτο error.
+
+Έλεγχος:
+
+```bash
+docker exec supabase-db psql -X -U postgres -d postgres -c "\dt public.*"
+docker exec supabase-db psql -X -U postgres -d postgres \
+  -c "select proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where nspname='public';"
+```
+
+Πρέπει να υπάρχουν `profiles`, `customers`, `contracts`, `tickets`, `products`, `user_roles`,
+`customer_azure_ad_*`, `softone_settings`, `mail_server_settings`, `ai_assistant_settings`
+και οι functions `has_role`, `is_admin`, `is_customer_admin_for`, `handle_new_user`,
+`match_customer_for_domain`.
+
+> Το μήνυμα `(ENOIDENTIFIER) no tenant identifier provided` σημαίνει ότι έτρεξες SQL προς τον
+> pooler (`127.0.0.1:5432`) αντί για το container. Χρησιμοποίησε το script.
+
+---
+
+## ΒΗΜΑ 5 — Δεδομένα
+
+Lovable → **Cloud → Advanced settings → Export data** → CSV → ανέβασέ τα στο `/opt/data`.
+
+```bash
+cd /opt/data
+for t in customers customer_email_domains products contracts \
+         customer_azure_ad_settings customer_azure_ad_groups customer_azure_ad_role_mappings \
+         softone_settings mail_server_settings ai_assistant_settings; do
+  [ -f "$t.csv" ] || continue
+  docker cp "$t.csv" "supabase-db:/tmp/$t.csv"
+  docker exec supabase-db psql -X -U postgres -d postgres \
+    -c "\copy public.$t FROM '/tmp/$t.csv' WITH CSV HEADER"
+  docker exec supabase-db rm -f "/tmp/$t.csv"
+done
+```
+
+**Χρήστες:** δεν μεταφέρονται με CSV (δεν έχεις τα password hashes). Συνιστάται να ξανακάνουν
+login με Google/Azure — το trigger `handle_new_user` φτιάχνει profile και δίνει
+`customer_admin` βάσει email domain (και `admin` για `@geniusnet.gr`).
+
+**Storage bucket:**
+
+```sql
+insert into storage.buckets (id, name, public) values ('mygn','mygn',false)
+on conflict (id) do nothing;
+```
+
+---
+
+## ΒΗΜΑ 6 — Edge functions
+
+```bash
+cp -r /opt/portal/supabase/functions/* /opt/stack/supabase/volumes/functions/
+cd /opt/stack/supabase && docker compose restart functions
+curl -i "http://localhost:8000/functions/v1/softone-sync"   # 401 = ΟΚ (όχι 404)
+```
+
+Functions: `ai-assistant`, `azure-ad-sync`, `mcp`, `notify-ticket`,
+`sharepoint-import-customers`, `sharepoint-sync-worklogs`, `sharepoint-worklogs`,
+`softone-sync`, `support-chat`.
+
+---
+
+## ΒΗΜΑ 7 — `/opt/portal/.env` (frontend + proxy)
 
 ```env
+# ── Frontend → self-hosted backend ──────────────────────────────
 VITE_SUPABASE_URL="https://api.geniusnetsoc.gr"
-VITE_SUPABASE_PUBLISHABLE_KEY="<ANON_KEY του self-hosted>"
+VITE_SUPABASE_PUBLISHABLE_KEY="<ANON_KEY από το ΒΗΜΑ 2>"
 VITE_SUPABASE_PROJECT_ID="selfhosted"
 
-PORT=127.0.0.1:8080
+# ── Reverse proxy ───────────────────────────────────────────────
+PORT=127.0.0.1:8080                 # το app δεν εκτίθεται δημόσια
 DOMAIN=geniusnetsoc.gr
 API_DOMAIN=api.geniusnetsoc.gr
 SUPABASE_API_UPSTREAM=host.docker.internal:8000
 LETSENCRYPT_EMAIL=admin@geniusnetsoc.gr
 ```
 
+Πρώτο σήκωμα (εκδίδει certificates για apex + www + api):
+
 ```bash
 cd /opt/portal
-./docker/proxy/init-certbot.sh     # πρώτη φορά: εκδίδει cert για apex + www + api
-# επόμενες φορές:
+cp .env.docker.example .env && nano .env
+chmod +x docker/proxy/init-certbot.sh
+./docker/proxy/init-certbot.sh
+```
+
+Επόμενα deploys:
+
+```bash
+cd /opt/portal && git pull
 docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
 ```
 
-> Τα `VITE_*` ψήνονται στο build — κάθε αλλαγή θέλει `--build`.
-
-### 6.1 nginx για το `api.` subdomain
-
-Γίνεται αυτόματα από τον containerized proxy: το `docker/proxy/default.conf.template`
-έχει ήδη server block για το `${API_DOMAIN}` που κάνει proxy στο Kong
-(`${SUPABASE_API_UPSTREAM}`, default `host.docker.internal:8000`) με websockets και
-`client_max_body_size 50m`. Το frontend δεν εκτίθεται δημόσια — μόνο μέσω του proxy
-(`PORT=127.0.0.1:8080`).
-
-DNS: A records για `@`, `www` και `api` προς το VM. Το cert για το `api.` εκδίδεται
-μαζί με τα υπόλοιπα από το `./docker/proxy/init-certbot.sh`.
-
-Αν το Supabase stack τρέχει σε δικό του docker network αντί για host ports, βάλε
-`SUPABASE_API_UPSTREAM=kong:8000` και σύνδεσε τον proxy σε εκείνο το network.
-
-
+> Τα `VITE_*` ψήνονται στο build → κάθε αλλαγή θέλει `--build`.
+> Αν το Supabase stack είναι σε δικό του docker network αντί για host ports, βάλε
+> `SUPABASE_API_UPSTREAM=kong:8000` και σύνδεσε τον proxy σε εκείνο το network.
 
 ---
 
-## 7. Re-configure OAuth providers
+## ΒΗΜΑ 8 — Google & Azure Auth (πλήρης ρύθμιση)
 
-Το callback URL αλλάζει από το Lovable Cloud στο δικό σου API domain:
+Το callback URL είναι πάντα:
 
 ```text
 https://api.geniusnetsoc.gr/auth/v1/callback
 ```
 
-### 7.1 Google
+### 8.1 Google
 
-1. Google Cloud Console → **APIs & Services → Credentials → OAuth client (Web)**.
-2. **Authorized JavaScript origins**: `https://geniusnetsoc.gr`
-3. **Authorized redirect URIs**: `https://api.geniusnetsoc.gr/auth/v1/callback`
-4. OAuth consent screen → Authorized domains: `geniusnetsoc.gr`
-5. Scopes: `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`
+1. Google Cloud Console → **APIs & Services → Credentials → Create OAuth client → Web**.
+2. Authorized JavaScript origins: `https://geniusnetsoc.gr`
+3. Authorized redirect URIs: `https://api.geniusnetsoc.gr/auth/v1/callback`
+4. OAuth consent screen → Authorized domains: `geniusnetsoc.gr`; scopes `openid`,
+   `.../auth/userinfo.email`, `.../auth/userinfo.profile`.
+5. Client id/secret → `GOTRUE_EXTERNAL_GOOGLE_*` στο `/opt/stack/supabase/.env`.
 
-Στο `/opt/stack/supabase/.env`:
+### 8.2 Azure / Entra ID
 
-```env
-GOTRUE_EXTERNAL_GOOGLE_ENABLED=true
-GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=<client id>
-GOTRUE_EXTERNAL_GOOGLE_SECRET=<client secret>
-GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=https://api.geniusnetsoc.gr/auth/v1/callback
-```
-
-### 7.2 Azure AD / Entra ID
-
-1. Entra portal → **App registrations** → το app σου → **Authentication**.
-2. Redirect URI (Web): `https://api.geniusnetsoc.gr/auth/v1/callback`
-3. **Certificates & secrets** → νέο client secret.
-4. **API permissions** (application): `User.Read.All`, `Group.Read.All`, `Device.Read.All`,
-   `Reports.Read.All` (Copilot usage) → **Grant admin consent**.
-
-```env
-GOTRUE_EXTERNAL_AZURE_ENABLED=true
-GOTRUE_EXTERNAL_AZURE_CLIENT_ID=<app id>
-GOTRUE_EXTERNAL_AZURE_SECRET=<secret>
-GOTRUE_EXTERNAL_AZURE_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
-GOTRUE_EXTERNAL_AZURE_REDIRECT_URI=https://api.geniusnetsoc.gr/auth/v1/callback
-```
+1. Entra portal → **App registrations → New registration** (Accounts in this organizational directory).
+2. **Authentication → Redirect URI (Web)**: `https://api.geniusnetsoc.gr/auth/v1/callback`
+3. **Certificates & secrets** → New client secret → κράτα το **Value**.
+4. **API permissions (Application)**: `User.Read.All`, `Group.Read.All`, `Device.Read.All`,
+   `Reports.Read.All`, `Organization.Read.All` → **Grant admin consent**.
+5. Tenant id / client id / secret → `GOTRUE_EXTERNAL_AZURE_*` και στο Admin → **Tenant / Azure AD**
+   tab του portal (για user/device/license sync· το secret κρυπτογραφείται με `AZURE_AD_ENC_KEY`).
 
 ```bash
 cd /opt/stack/supabase && docker compose up -d auth
+curl -s https://api.geniusnetsoc.gr/auth/v1/settings | jq '.external'
 ```
 
-### 7.3 Σημαντικό για τον κώδικα
+Πρέπει να δείχνει `"google": true, "azure": true`.
 
-Το `lovable.auth.signInWithOAuth()` (Lovable managed OAuth broker) **δεν δουλεύει self-hosted**.
-Στο self-hosted deployment το κουμπί Google πρέπει να καλεί απευθείας:
+### 8.3 Σημείωση για τον κώδικα
+
+Ο Lovable managed OAuth broker (`lovable.auth.signInWithOAuth`) **δεν δουλεύει self-hosted**.
+Το `src/portal/pages/Login.tsx` έχει fallback σε:
 
 ```ts
 await supabase.auth.signInWithOAuth({
-  provider: "google",                     // ή "azure"
+  provider: "google",            // ή "azure"
   options: { redirectTo: `${window.location.origin}/portal` },
 });
 ```
 
-Το `src/portal/pages/Login.tsx` έχει ήδη fallback σε `supabase.auth.signInWithOAuth` όταν το
-Lovable broker δεν απαντά — αν κολλήσει, άλλαξέ το να καλεί μόνο το supabase client.
+Αν κολλήσει το login στο preview-style popup, άφησε μόνο αυτή τη διαδρομή.
+
+### 8.4 AI provider
+
+Το `LOVABLE_API_KEY` δεν λειτουργεί εκτός Lovable. Στο **Admin → AI Bot** διάλεξε provider
+(OpenAI ή Google Gemini), βάλε δικό σου API key και base URL. Συνδρομές Gemini Advanced /
+Microsoft 365 Copilot **δεν** είναι API keys.
 
 ---
 
-## 8. Backups
+## ΒΗΜΑ 9 — Ο λογαριασμός `john.zontos@gmail.com`
+
+Πρώτα κάνει login μία φορά (Google) ώστε να δημιουργηθεί στο `auth.users`. Μετά:
 
 ```bash
-# /etc/cron.daily/portal-backup
+docker exec -i supabase-db psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+-- Portal Admin
+insert into public.user_roles (user_id, role)
+select id, 'admin'::public.app_role from auth.users where lower(email)='john.zontos@gmail.com'
+on conflict (user_id, role) do nothing;
+
+-- Customer Admin (ο ρόλος + πρόσβαση σε ΟΛΟΥΣ τους πελάτες)
+insert into public.user_roles (user_id, role)
+select id, 'customer_admin'::public.app_role from auth.users where lower(email)='john.zontos@gmail.com'
+on conflict (user_id, role) do nothing;
+
+insert into public.user_customer_admins (user_id, customer_id)
+select u.id, c.id from auth.users u cross join public.customers c
+where lower(u.email)='john.zontos@gmail.com'
+on conflict do nothing;
+
+-- Δεν δένεται σε μία εταιρεία (μένει global)
+update public.profiles set customer_id = null
+where lower(email)='john.zontos@gmail.com';
+SQL
+```
+
+Το trigger `protect_primary_portal_admin_roles_trigger` εμποδίζει την αφαίρεση αυτών των ρόλων,
+και η `is_customer_admin_for()` δίνει έτσι κι αλλιώς πρόσβαση σε κάθε πελάτη σε όποιον είναι
+Portal Admin. Έλεγχος:
+
+```bash
+docker exec supabase-db psql -X -U postgres -d postgres -c \
+"select p.email, r.role from public.profiles p join public.user_roles r on r.user_id=p.id
+ where lower(p.email)='john.zontos@gmail.com';"
+```
+
+Οι υπόλοιποι χρήστες γίνονται αυτόματα Customer Admin **της δικής τους εταιρείας μόνο**,
+εφόσον το domain τους είναι καταχωρημένο στο Admin → Πελάτες → Email domains
+(τα generic domains, π.χ. gmail.com, αγνοούνται).
+
+---
+
+## ΒΗΜΑ 10 — Τελικός έλεγχος
+
+| Έλεγχος | Εντολή | Αναμενόμενο |
+|---|---|---|
+| DB | `docker exec supabase-db psql -U postgres -d postgres -c "select count(*) from public.customers"` | αριθμός πελατών |
+| REST | `curl -I https://api.geniusnetsoc.gr/rest/v1/ -H "apikey: $ANON_KEY"` | 200 |
+| Auth | `curl https://api.geniusnetsoc.gr/auth/v1/health` | `GoTrue` |
+| Providers | `curl -s https://api.geniusnetsoc.gr/auth/v1/settings \| jq .external` | google/azure true |
+| Functions | `curl -i https://api.geniusnetsoc.gr/functions/v1/softone-sync` | 401 (όχι 404) |
+| Frontend | `https://geniusnetsoc.gr` | login screen |
+| SSO | Login με Google | redirect στο `/portal` |
+| Ρόλοι | Admin panel για `john.zontos@gmail.com` | όλα τα tabs |
+
+---
+
+## ΒΗΜΑ 11 — Backups
+
+```bash
+sudo tee /etc/cron.daily/portal-backup >/dev/null <<'SH'
 #!/bin/sh
-docker exec supabase-db pg_dump -U postgres -Fc postgres \
-  > /var/backups/portal-$(date +%F).dump
+docker exec supabase-db pg_dump -U postgres -Fc postgres > /var/backups/portal-$(date +%F).dump
 find /var/backups -name 'portal-*.dump' -mtime +14 -delete
+SH
+sudo chmod +x /etc/cron.daily/portal-backup
 ```
 
 Restore: `docker exec -i supabase-db pg_restore -U postgres -d postgres -c < dump`.
-Κράτα και τα volumes του storage (`/opt/stack/supabase/volumes/storage`).
+Κράτα και τα volumes storage (`/opt/stack/supabase/volumes/storage`).
 
 ---
 
-## 9. Έλεγχος ότι όλα παίζουν
-
-| Έλεγχος | Εντολή / ενέργεια | Αναμενόμενο |
-|---|---|---|
-| DB | `docker exec supabase-db psql -X -U postgres -d postgres -c "select count(*) from public.customers"` | ο αριθμός των πελατών |
-| API | `curl -I https://api.geniusnetsoc.gr/rest/v1/ -H "apikey: $ANON_KEY"` | 200 |
-| Auth | `curl https://api.geniusnetsoc.gr/auth/v1/health` | `{"...":"GoTrue"}` |
-| Functions | `curl -i https://api.geniusnetsoc.gr/functions/v1/softone-sync` | 401 (όχι 404) |
-| Frontend | άνοιξε `https://geniusnetsoc.gr` | login screen |
-| SSO | Login με Google | redirect πίσω στο `/portal` |
-| Ρόλοι | Admin panel ορατό για `john.zontos@gmail.com` | όλα τα tabs |
-
----
-
-## 10. Troubleshooting
+## Troubleshooting
 
 | Πρόβλημα | Αιτία / Λύση |
 |---|---|
-| Λευκή σελίδα μετά το build | Λάθος/κενά `VITE_SUPABASE_*` → διόρθωσε `.env` και `--build` |
-| `Invalid API key` | Το ANON_KEY δεν έχει υπογραφεί με το ίδιο `JWT_SECRET` |
-| `(ENOIDENTIFIER) no tenant identifier provided` | Η εντολή πήγε στον Supavisor. Τρέξε `./scripts/apply-self-hosted-migrations.sh`, που συνδέεται απευθείας στο database container |
+| Λευκή σελίδα | Λάθος/κενά `VITE_SUPABASE_*` → διόρθωσε `/opt/portal/.env` και `up -d --build` |
+| `Invalid API key` | Το ANON_KEY δεν υπογράφηκε με το ίδιο `JWT_SECRET` |
+| `(ENOIDENTIFIER) no tenant identifier provided` | SQL προς Supavisor → χρησιμοποίησε `scripts/apply-self-hosted-migrations.sh` |
 | Login redirect σε λάθος domain | `SITE_URL` / `ADDITIONAL_REDIRECT_URLS` στο stack `.env` |
-| `redirect_uri_mismatch` | Το URI στο Google/Azure δεν είναι ακριβώς `https://api.…/auth/v1/callback` |
-| RLS: «δεν βλέπω δεδομένα» | Δεν έτρεξαν όλες οι migrations (λείπουν GRANTs/policies) |
+| `redirect_uri_mismatch` | Το URI στο Google/Azure πρέπει να είναι ακριβώς `https://api.geniusnetsoc.gr/auth/v1/callback` |
+| «Δεν βλέπω δεδομένα» (RLS) | Δεν έτρεξαν όλες οι migrations (λείπουν GRANTs/policies) |
 | Functions 404 | Δεν αντιγράφηκαν στο `volumes/functions` ή δεν έγινε restart |
-| Azure sync αποτυγχάνει | Λείπει `AZURE_AD_ENC_KEY` ή admin consent στα Graph permissions |
-| Realtime δεν συνδέεται | Λείπουν τα `Upgrade`/`Connection` headers στο nginx |
+| Azure sync error | Λείπει `AZURE_AD_ENC_KEY` ή admin consent στα Graph permissions |
+| Certbot fail | Λάθος DNS ή κλειστή θύρα 80 |
 | OOM στο build | `NODE_OPTIONS=--max-old-space-size=4096` |
 
 ---
 
-## 11. Τι χάνεις φεύγοντας από το Cloud
+## Τι χάνεις φεύγοντας από το Cloud
 
-* Αυτόματα backups, monitoring και updates — τα αναλαμβάνεις εσύ.
-* Lovable AI Gateway (`LOVABLE_API_KEY`) — χρειάζεσαι δικό σου model API key.
-* Managed OAuth broker — χρησιμοποιείς απευθείας τους providers (κεφ. 7).
-* Το preview/publish του Lovable δεν ενημερώνει πια το self-hosted περιβάλλον· κάθε αλλαγή
-  θέλει `git pull` + rebuild + νέες migrations στο VM.
+Αυτόματα backups/monitoring/updates, Lovable AI Gateway, managed OAuth broker, και το
+preview/publish του Lovable δεν ενημερώνει το VM — κάθε αλλαγή θέλει `git pull` + rebuild +
+`./scripts/apply-self-hosted-migrations.sh`.
