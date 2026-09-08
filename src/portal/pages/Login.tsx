@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, ShieldCheck, Lock, Loader2, Mail, Apple, Globe, UserCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import logo from "@/assets/geniusnet-logo-wide.jpg";
-import { lovable } from "@/integrations/lovable";
+import { signInWithProvider, type OAuthProvider } from "@/portal/auth/oauth";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/portal/auth/AuthContext";
 import { Helmet } from "react-helmet-async";
@@ -38,7 +38,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [busy, setBusy] = useState<"google" | "apple" | "email" | null>(null);
+  const [busy, setBusy] = useState<"google" | "apple" | "azure" | "email" | null>(null);
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotBusy, setForgotBusy] = useState(false);
@@ -68,13 +68,19 @@ export default function Login() {
     }
   }, [authLoading, user, navigate]);
 
-  const handleGoogle = async () => {
-    setBusy("google");
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: `${window.location.origin}/login`,
-    });
+  const providerLabel: Record<OAuthProvider, string> = {
+    google: "Google",
+    apple: "Apple",
+    azure: "Microsoft",
+  };
+
+  const startOAuth = async (provider: OAuthProvider) => {
+    setBusy(provider);
+    const result = await signInWithProvider(provider, `${window.location.origin}/login`);
     if (result.error) {
-      toast.error("Αποτυχία σύνδεσης με Google", { description: result.error.message });
+      toast.error(`Αποτυχία σύνδεσης με ${providerLabel[provider]}`, {
+        description: result.error.message,
+      });
       setBusy(null);
       return;
     }
@@ -82,19 +88,9 @@ export default function Login() {
     navigate(getTarget());
   };
 
-  const handleApple = async () => {
-    setBusy("apple");
-    const result = await lovable.auth.signInWithOAuth("apple", {
-      redirect_uri: `${window.location.origin}/login`,
-    });
-    if (result.error) {
-      toast.error("Αποτυχία σύνδεσης με Apple", { description: result.error.message });
-      setBusy(null);
-      return;
-    }
-    if (result.redirected) return;
-    navigate(getTarget());
-  };
+  const handleGoogle = () => startOAuth("google");
+  const handleApple = () => startOAuth("apple");
+  const handleMicrosoft = () => startOAuth("azure");
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -278,12 +274,16 @@ export default function Login() {
                 <Button
                   size="lg"
                   variant="secondary"
-                  className="h-12 w-full justify-center gap-3 bg-white/40 text-foreground/70 hover:bg-white/40 cursor-not-allowed"
-                  disabled
-                  title="Διαθέσιμο σύντομα μέσω SAML SSO"
+                  className="h-12 w-full justify-center gap-3 bg-white text-foreground hover:bg-white/90"
+                  onClick={handleMicrosoft}
+                  disabled={busy !== null}
                 >
-                  <MicrosoftIcon />
-                  Microsoft (σύντομα)
+                  {busy === "azure" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <MicrosoftIcon />
+                  )}
+                  Σύνδεση με Microsoft
                 </Button>
               </div>
 
