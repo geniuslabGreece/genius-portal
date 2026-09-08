@@ -38,7 +38,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [busy, setBusy] = useState<"google" | "apple" | "email" | null>(null);
+  const [busy, setBusy] = useState<"google" | "apple" | "azure" | "email" | null>(null);
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotBusy, setForgotBusy] = useState(false);
@@ -68,13 +68,19 @@ export default function Login() {
     }
   }, [authLoading, user, navigate]);
 
-  const handleGoogle = async () => {
-    setBusy("google");
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: `${window.location.origin}/login`,
-    });
+  const providerLabel: Record<OAuthProvider, string> = {
+    google: "Google",
+    apple: "Apple",
+    azure: "Microsoft",
+  };
+
+  const startOAuth = async (provider: OAuthProvider) => {
+    setBusy(provider);
+    const result = await signInWithProvider(provider, `${window.location.origin}/login`);
     if (result.error) {
-      toast.error("Αποτυχία σύνδεσης με Google", { description: result.error.message });
+      toast.error(`Αποτυχία σύνδεσης με ${providerLabel[provider]}`, {
+        description: result.error.message,
+      });
       setBusy(null);
       return;
     }
@@ -82,19 +88,9 @@ export default function Login() {
     navigate(getTarget());
   };
 
-  const handleApple = async () => {
-    setBusy("apple");
-    const result = await lovable.auth.signInWithOAuth("apple", {
-      redirect_uri: `${window.location.origin}/login`,
-    });
-    if (result.error) {
-      toast.error("Αποτυχία σύνδεσης με Apple", { description: result.error.message });
-      setBusy(null);
-      return;
-    }
-    if (result.redirected) return;
-    navigate(getTarget());
-  };
+  const handleGoogle = () => startOAuth("google");
+  const handleApple = () => startOAuth("apple");
+  const handleMicrosoft = () => startOAuth("azure");
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
