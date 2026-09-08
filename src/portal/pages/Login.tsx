@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, ShieldCheck, Lock, Loader2, Mail, Apple, Globe, UserCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import logo from "@/assets/geniusnet-logo-wide.jpg";
-import { lovable } from "@/integrations/lovable";
+import { signInWithProvider, type OAuthProvider } from "@/portal/auth/oauth";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/portal/auth/AuthContext";
 import { Helmet } from "react-helmet-async";
