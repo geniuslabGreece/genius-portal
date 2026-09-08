@@ -274,12 +274,16 @@ export default function Login() {
                 <Button
                   size="lg"
                   variant="secondary"
-                  className="h-12 w-full justify-center gap-3 bg-white/40 text-foreground/70 hover:bg-white/40 cursor-not-allowed"
-                  disabled
-                  title="Διαθέσιμο σύντομα μέσω SAML SSO"
+                  className="h-12 w-full justify-center gap-3 bg-white text-foreground hover:bg-white/90"
+                  onClick={handleMicrosoft}
+                  disabled={busy !== null}
                 >
-                  <MicrosoftIcon />
-                  Microsoft (σύντομα)
+                  {busy === "azure" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <MicrosoftIcon />
+                  )}
+                  Σύνδεση με Microsoft
                 </Button>
               </div>
 
