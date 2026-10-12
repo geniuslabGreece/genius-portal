@@ -131,7 +131,9 @@ STUDIO_DEFAULT_PROJECT=GeniusNet Portal
 SITE_URL=https://geniusnetsoc.gr
 API_EXTERNAL_URL=https://api.geniusnetsoc.gr
 SUPABASE_PUBLIC_URL=https://api.geniusnetsoc.gr
-ADDITIONAL_REDIRECT_URLS=https://geniusnetsoc.gr/**,https://www.geniusnetsoc.gr/**
+# Επιτρεπτοί προορισμοί μετά το login (χωρίς κενά, χωρισμένα με κόμμα).
+# Το localhost μόνο αν δοκιμάζεις το frontend τοπικά απέναντι στο VM.
+ADDITIONAL_REDIRECT_URLS=https://geniusnetsoc.gr/**,https://www.geniusnetsoc.gr/**,http://localhost:8080/**
 
 ############ Auth ############
 DISABLE_SIGNUP=false
@@ -288,6 +290,18 @@ SUPABASE_API_UPSTREAM=host.docker.internal:8000
 LETSENCRYPT_EMAIL=admin@geniusnetsoc.gr
 ```
 
+Σειρά εκκίνησης proxy:
+1. Το `bootstrap.conf.template` σηκώνεται πρώτο σε port 80 και σερβίρει **μόνο** το ACME challenge (όλα τα άλλα 503).
+2. Το certbot εκδίδει ένα certificate για apex + www + api.
+3. Ο proxy αλλάζει στο `default.conf.template` (HTTPS, OAuth routing).
+
+Έλεγχος μετά:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml exec proxy nginx -t
+curl -sI https://api.geniusnetsoc.gr/auth/v1/health
+curl -s  https://api.geniusnetsoc.gr/auth/v1/settings | jq '.external'
+```
+
 Πρώτο σήκωμα (εκδίδει certificates για apex + www + api):
 
 ```bash
@@ -344,19 +358,32 @@ curl -s https://api.geniusnetsoc.gr/auth/v1/settings | jq '.external'
 
 Πρέπει να δείχνει `"google": true, "azure": true`.
 
-### 8.3 Σημείωση για τον κώδικα
+### 8.3 Πώς ρέει το login (και τι κάνει ο κώδικας)
 
-Ο Lovable managed OAuth broker (`lovable.auth.signInWithOAuth`) **δεν δουλεύει self-hosted**.
-Το `src/portal/pages/Login.tsx` έχει fallback σε:
-
-```ts
-await supabase.auth.signInWithOAuth({
-  provider: "google",            // ή "azure"
-  options: { redirectTo: `${window.location.origin}/portal` },
-});
+```text
+geniusnetsoc.gr/login ──► api.geniusnetsoc.gr/auth/v1/authorize?provider=google|azure
+   ──► Google / Microsoft ──► api.geniusnetsoc.gr/auth/v1/callback
+   ──► 302 στο https://geniusnetsoc.gr/login#access_token=... ──► /portal
 ```
 
-Αν κολλήσει το login στο preview-style popup, άφησε μόνο αυτή τη διαδρομή.
+- Το `src/portal/auth/oauth.ts` καταλαβαίνει μόνο του ότι το backend **δεν** είναι managed
+  (`VITE_SUPABASE_URL` ≠ `*.supabase.co`) και καλεί απευθείας `supabase.auth.signInWithOAuth`
+  με `redirectTo = https://geniusnetsoc.gr/login`. Για Azure ζητά `openid profile email offline_access`.
+- Το κουμπί **«Σύνδεση με Microsoft»** στέλνει `provider: "azure"`.
+- Ο nginx (`docker/proxy/default.conf.template`) έχει ξεχωριστό `location /auth/v1/` με
+  `X-Forwarded-Proto https`, `X-Forwarded-Host`, `proxy_buffering off`, `proxy_redirect off`
+  και μεγάλα header buffers, ώστε τα callbacks και τα cookies να περνούν αυτούσια.
+
+### 8.3α Checklist αν το login αποτυγχάνει
+
+| Σύμπτωμα | Διόρθωση |
+|---|---|
+| `redirect_uri_mismatch` (Google) / `AADSTS50011` (Azure) | Ο provider πρέπει να έχει **ακριβώς** `https://api.geniusnetsoc.gr/auth/v1/callback` |
+| `Unsupported provider` | Λείπει `GOTRUE_EXTERNAL_*_ENABLED=true` → `docker compose up -d auth` |
+| Μετά το login γυρνά στο `SITE_URL` αντί για `/login` | Πρόσθεσε το URL στο `ADDITIONAL_REDIRECT_URLS` |
+| Callback με `http://` | Λείπει `API_EXTERNAL_URL=https://...` ή ο proxy δεν στέλνει `X-Forwarded-Proto` |
+| `502 / upstream sent too big header` | Ξαναφόρτωσε τον proxy με το νέο template |
+| Η Microsoft δεν επιστρέφει email | Στο Entra: Token configuration → optional claim `email`, και ο χρήστης να έχει mail |
 
 ### 8.4 AI provider
 
