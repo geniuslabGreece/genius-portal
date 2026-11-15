@@ -6,6 +6,44 @@
 > **Απαιτήσεις VM:** Ubuntu 22.04/24.04, **4 vCPU / 8 GB RAM / 60 GB disk**,
 > public IP, domain `geniusnetsoc.gr` + subdomain `api.geniusnetsoc.gr`.
 
+> **Κατάσταση ελέγχου:** τα scripts ελέγχονται τοπικά, όχι σε πραγματικό VM.
+> Η εγκατάσταση δεν θεωρείται ολοκληρωμένη πριν περάσουν τα login Google/Microsoft,
+> τα δικαιώματα και μία πραγματική απάντηση του AI. Η μεταφορά SharePoint και MCP
+> έχει πρόσθετες εξαρτήσεις που αναφέρονται παρακάτω.
+
+## Γρήγορη εγκατάσταση με το script
+
+Το script **δεν συνδέεται στο VM**, δεν εγκαθιστά Docker, δεν κάνει export δεδομένων
+και δεν ζητά ή δημιουργεί Google/Azure credentials. Τρέχεις τα παρακάτω **στο VM**,
+αφού ολοκληρώσεις τα Βήματα 0–1. Χρησιμοποίησε checkout του portal χωρίς το Cloud `.env`:
+αν υπάρχει `/opt/portal/.env`, κράτα ιδιωτικό αντίγραφο πριν το αντικαταστήσεις.
+
+```bash
+cd /opt/portal
+# Το script δημιουργεί αρχεία μόνο όταν δεν υπάρχουν· ποτέ δεν αλλάζει υπάρχοντα κλειδιά.
+# Στο backend κράτα .env.example, αλλά ΜΗΝ το αντιγράψεις σε .env για την αυτόματη μέθοδο.
+bash scripts/setup-self-host.sh prepare
+nano /opt/stack/supabase/.env
+nano /opt/portal/.env
+# Συμπλήρωσε Google/Azure credentials, βάλε τα ENABLED=true μόνο όταν είναι έτοιμα,
+# πραγματικό email Certbot και SMTP. Έλεγξε τις ενότητες των δύο .env παρακάτω.
+bash scripts/setup-self-host.sh backend
+bash scripts/setup-self-host.sh migrate
+# Τώρα εισάγεις ελεγμένα δεδομένα — Βήμα 5. Όχι τυφλό restore πάνω σε production.
+bash scripts/setup-self-host.sh https
+bash scripts/setup-self-host.sh check
+```
+
+Το `prepare` παράγει ασφαλή κλειδιά, δύο `.env` με δικαιώματα `600` και αντιγράφει
+το `docker/selfhost/portal.override.yml` στο backend. Το `backend` αντιγράφει τις
+εννέα λειτουργίες χωρίς να αντικαθιστά τον upstream φάκελο `main` και εκκινεί το stack.
+Το `migrate` τρέχει πρώτα `supabase/migrations`, μετά `drizzle/migrations`, με ιστορικό
+και διακοπή στο πρώτο σφάλμα. Το `https` εκδίδει το πιστοποιητικό και εκκινεί τον proxy.
+Το `check` ελέγχει τη δημόσια οθόνη σύνδεσης και Auth — **όχι** πραγματική σύνδεση χρήστη.
+
+Για διαφορετική τοποθεσία backend: `STACK_DIR=/άλλη/διαδρομή bash scripts/setup-self-host.sh prepare`.
+Χρησιμοποίησε την ίδια μεταβλητή στα επόμενα βήματα. Δεν υπάρχει αυτόματο destructive reset.
+
 ```text
                  ┌───────────────────────────────┐
   geniusnetsoc.gr│ nginx proxy (80/443, certbot) │
@@ -36,13 +74,17 @@
 
 ```bash
 # Docker
-curl -fsSL https://get.docker.com | sudo sh
+sudo apt update
+sudo apt install -y curl ca-certificates
+curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+# Διάβασε το script πριν το τρέξεις με δικαιώματα root.
+sudo sh /tmp/get-docker.sh
 sudo usermod -aG docker $USER && newgrp docker
 docker --version && docker compose version
 
 # Υπόλοιπα
 sudo apt update
-sudo apt install -y git curl ca-certificates openssl jq postgresql-client python3 python3-pip ufw
+sudo apt install -y git curl ca-certificates openssl jq postgresql-client python3 dnsutils ufw
 
 # Firewall
 sudo ufw allow OpenSSH
@@ -51,6 +93,13 @@ sudo ufw --force enable
 ```
 
 **DNS (πριν το certbot):** A records → public IP του VM για `@`, `www`, `api`.
+
+Αν υπάρχουν AAAA records, πρέπει να δείχνουν επίσης στο σωστό VM ή να αφαιρεθούν.
+Μην εκθέσεις δημόσια θύρες 8000, 8443, 5432, 6543, Studio ή Docker socket.
+Τα published ports του Docker μπορούν να παρακάμψουν το UFW: βάλε και κανόνες
+στο firewall του παρόχου/DOCKER-USER ή περιορισμένα bindings. Ο proxy χρησιμοποιεί
+`host.docker.internal:8000`, άρα το API πρέπει να είναι προσβάσιμο από το Docker bridge,
+όχι αποκλειστικά στο loopback του host. Πρόσβαση διαχείρισης μόνο μέσω SSH/VPN.
 
 ```bash
 dig +short geniusnetsoc.gr www.geniusnetsoc.gr api.geniusnetsoc.gr
@@ -70,12 +119,18 @@ git clone https://github.com/<org>/<repo>.git /opt/portal
 cd /opt/stack
 git clone --depth 1 https://github.com/supabase/supabase.git supabase-src
 cp -r supabase-src/docker supabase
-cd supabase && cp .env.example .env
+cd supabase
+# Για το script: ΜΗΝ κάνεις cp .env.example .env, το prepare το δημιουργεί.
+# Μόνο για χειροκίνητη εγκατάσταση:
+# cp .env.example .env && chmod 600 .env
 ```
 
 ---
 
 ## ΒΗΜΑ 2 — Παραγωγή κλειδιών
+
+**Προτεινόμενο:** `bash scripts/setup-self-host.sh prepare` από `/opt/portal`.
+Παράγει και γράφει τα κλειδιά χωρίς να τα εμφανίζει. Για χειροκίνητη μέθοδο:
 
 ```bash
 export POSTGRES_PASSWORD=$(openssl rand -hex 24)
@@ -84,22 +139,37 @@ export DASHBOARD_PASSWORD=$(openssl rand -base64 18)
 export AZURE_AD_ENC_KEY=$(openssl rand -base64 32) # AES-GCM key για τα Azure secrets
 export SECRET_KEY_BASE=$(openssl rand -hex 32)
 export VAULT_ENC_KEY=$(openssl rand -hex 16)       # ακριβώς 32 χαρακτήρες
+export REALTIME_DB_ENC_KEY=$(openssl rand -hex 8)  # ακριβώς 16 χαρακτήρες
+export PG_META_CRYPTO_KEY=$(openssl rand -hex 32)
+export LOGFLARE_PUBLIC_ACCESS_TOKEN=$(openssl rand -hex 32)
+export LOGFLARE_PRIVATE_ACCESS_TOKEN=$(openssl rand -hex 32)
+export S3_PROTOCOL_ACCESS_KEY_ID=$(openssl rand -hex 16)
+export S3_PROTOCOL_ACCESS_KEY_SECRET=$(openssl rand -hex 32)
 ```
 
 ### ANON_KEY & SERVICE_ROLE_KEY (υπογεγραμμένα με το ίδιο JWT_SECRET)
 
 ```bash
-pip3 install --quiet pyjwt
-python3 - <<'PY' | tee /opt/stack/keys.txt
-import os, time, jwt
-s = os.environ["JWT_SECRET"]; iat = int(time.time()); exp = iat + 10*365*24*3600
-for role in ("anon", "service_role"):
-    print(role.upper()+"_KEY=" + jwt.encode({"role":role,"iss":"supabase","iat":iat,"exp":exp}, s, algorithm="HS256"))
+# Χωρίς pip και χωρίς εκτύπωση των κλειδιών στο terminal.
+umask 077
+python3 - <<'PY' > /opt/stack/keys.txt
+import os, sys
+sys.path.insert(0, '/opt/portal/scripts')
+from importlib import import_module
+keygen = import_module('prepare-self-host-env')
+for role in ('anon', 'service_role'):
+    print(role.upper() + '_KEY=' + keygen.jwt(os.environ['JWT_SECRET'], role))
 PY
 chmod 600 /opt/stack/keys.txt
 ```
 
 > Κράτα το `JWT_SECRET` — αν αλλάξει, όλα τα keys ακυρώνονται (`Invalid API key`).
+
+Κράτα **όλα** τα κλειδιά κρυπτογράφησης και ένα ιδιωτικό backup των `.env`.
+Μην χρησιμοποιήσεις demo keys από το upstream `.env.example`. Σε νέα upstream έκδοση
+έλεγξε και τις πρόσθετες απαιτήσεις κλειδιών· μην κάνεις ανεξέλεγκτο upgrade παραγωγής.
+Αν εισάγεις υπάρχοντα κρυπτογραφημένα Azure credentials, χρειάζεται το **ίδιο**
+`AZURE_AD_ENC_KEY` της πηγής, διαφορετικά τα ξανακαταχωρίζεις στο Admin μετά τη μεταφορά.
 
 ---
 
@@ -120,6 +190,12 @@ ANON_KEY=<ANON_KEY>
 SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY>
 SECRET_KEY_BASE=<SECRET_KEY_BASE>
 VAULT_ENC_KEY=<VAULT_ENC_KEY>
+REALTIME_DB_ENC_KEY=<REALTIME_DB_ENC_KEY>
+PG_META_CRYPTO_KEY=<PG_META_CRYPTO_KEY>
+LOGFLARE_PUBLIC_ACCESS_TOKEN=<LOGFLARE_PUBLIC_ACCESS_TOKEN>
+LOGFLARE_PRIVATE_ACCESS_TOKEN=<LOGFLARE_PRIVATE_ACCESS_TOKEN>
+S3_PROTOCOL_ACCESS_KEY_ID=<S3_PROTOCOL_ACCESS_KEY_ID>
+S3_PROTOCOL_ACCESS_KEY_SECRET=<S3_PROTOCOL_ACCESS_KEY_SECRET>
 
 ############ Studio (μην το εκθέσεις δημόσια) ############
 DASHBOARD_USERNAME=admin
@@ -141,6 +217,7 @@ ENABLE_EMAIL_SIGNUP=true
 ENABLE_EMAIL_AUTOCONFIRM=false
 ENABLE_PHONE_SIGNUP=false
 ENABLE_PHONE_AUTOCONFIRM=false
+ENABLE_ANONYMOUS_USERS=false
 JWT_EXPIRY=3600
 MAILER_URLPATHS_CONFIRMATION=/auth/v1/verify
 MAILER_URLPATHS_RECOVERY=/auth/v1/verify
@@ -179,23 +256,29 @@ KONG_HTTP_PORT=8000
 KONG_HTTPS_PORT=8443
 ```
 
-Στο `docker-compose.yml` του stack, στο service `functions`, πέρασε τα secrets:
+**Κρίσιμο:** το Docker `.env` δεν περνά αυτόματα τις μεταβλητές στις υπηρεσίες.
+Το upstream compose έχει σχολιασμένα τα Google/Azure settings. Χρησιμοποίησε το
+παρεχόμενο override, που περνά τις τιμές στο `auth` και τα secrets στο `functions`:
 
-```yaml
-  functions:
-    environment:
-      MICROSOFT_SHAREPOINT_API_KEY: ${MICROSOFT_SHAREPOINT_API_KEY}
-      AZURE_AD_ENC_KEY: ${AZURE_AD_ENC_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+```bash
+cp /opt/portal/docker/selfhost/portal.override.yml /opt/stack/supabase/portal.override.yml
+chmod 600 /opt/stack/supabase/.env /opt/portal/.env
 ```
+
+Τα `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` υπάρχουν ήδη
+στο environment του upstream `functions`: URL προς το εσωτερικό API service
+(`http://kong:8000` ή `http://api-gw:8000`, ανάλογα με την upstream έκδοση),
+`ANON_KEY` και `SERVICE_ROLE_KEY` αντίστοιχα. Μην βάλεις το secret/service-role key
+στο frontend. Διατήρησε τον upstream εσωτερικό URL, μην αντιγράψεις τυφλά service names.
 
 Εκκίνηση:
 
 ```bash
 cd /opt/stack/supabase
-docker compose pull
-docker compose up -d
-docker compose ps                      # όλα healthy
+docker compose -f docker-compose.yml -f portal.override.yml config --quiet
+docker compose -f docker-compose.yml -f portal.override.yml pull
+docker compose -f docker-compose.yml -f portal.override.yml up -d
+docker compose -f docker-compose.yml -f portal.override.yml ps
 curl -s http://localhost:8000/auth/v1/health
 ```
 
@@ -209,6 +292,7 @@ chmod +x scripts/apply-self-hosted-migrations.sh
 ./scripts/apply-self-hosted-migrations.sh          # DB_CONTAINER=<name> αν διαφέρει
 ```
 
+Τρέχει πρώτα **όλα** τα SQL στο `supabase/migrations` και μετά στο `drizzle/migrations`.
 Τρέχει **μέσα** στο `supabase-db` container (παρακάμπτει τον Supavisor), κρατά ιστορικό στο
 `portal_migrations.applied_migrations`, `--single-transaction`, σταματά στο πρώτο error.
 
@@ -232,7 +316,15 @@ docker exec supabase-db psql -X -U postgres -d postgres \
 
 ## ΒΗΜΑ 5 — Δεδομένα
 
-Lovable → **Cloud → Advanced settings → Export data** → CSV → ανέβασέ τα στο `/opt/data`.
+Lovable → **Database → Manage → Settings → Export data** → CSV → ανέβασέ τα στο `/opt/data`.
+Μην θεωρήσεις το CSV πλήρες backup χρηστών/αρχείων. Σταμάτα εγγραφές στην πηγή κατά
+το τελικό export και κράτα αντίγραφο πριν την εισαγωγή. Σε υπάρχουσα βάση μην ξανατρέξεις
+blind import: θα προκύψουν διπλότυπα και συγκρούσεις.
+
+**Πριν την εισαγωγή:** τα CSV πρέπει να έχουν τις ίδιες στήλες με τη βάση στόχο
+και σωστή σειρά, ή να χρησιμοποιήσεις ρητή λίστα στηλών στο `\copy`. Το `HEADER`
+δεν αντιστοιχίζει ονόματα στηλών. Εισάγεις πρώτα ανεξάρτητα δεδομένα (πελάτες, προϊόντα),
+μετά δεδομένα που τα αναφέρουν. Ο παρακάτω βρόχος είναι **παράδειγμα**, όχι πλήρης μεταφορά:
 
 ```bash
 cd /opt/data
@@ -247,11 +339,15 @@ for t in customers customer_email_domains products contracts \
 done
 ```
 
-**Χρήστες:** δεν μεταφέρονται με CSV (δεν έχεις τα password hashes). Συνιστάται να ξανακάνουν
-login με Google/Azure — το trigger `handle_new_user` φτιάχνει profile και δίνει
+**Χρήστες:** νέα σύνδεση Google/Azure δημιουργεί νέα IDs· δεν μεταφέρει αυτόματα τα
+παλιά tickets/messages/profiles. Χρειάζεται αντιστοίχιση παλιού → νέου user ID και
+ελεγμένη μεταφορά των σχετικών αναφορών, ή πλήρες εγκεκριμένο auth export εφόσον
+είναι διαθέσιμο. Μην παρακάμψεις foreign keys για να περάσει η εισαγωγή.
+Το trigger `handle_new_user` φτιάχνει profile και δίνει
 `customer_admin` βάσει email domain (και `admin` για `@geniusnet.gr`).
 
-**Storage bucket:**
+**Storage:** το bucket μόνο του δεν μεταφέρει αρχεία· κατέβασε/ανέβασε τα αντικείμενα
+με την ίδια διαδρομή, διατηρώντας ownership και policies. Μόνο στο δικό σου VM:
 
 ```sql
 insert into storage.buckets (id, name, public) values ('mygn','mygn',false)
@@ -264,13 +360,25 @@ on conflict (id) do nothing;
 
 ```bash
 cp -r /opt/portal/supabase/functions/* /opt/stack/supabase/volumes/functions/
-cd /opt/stack/supabase && docker compose restart functions
+cd /opt/stack/supabase
+docker compose -f docker-compose.yml -f portal.override.yml up -d --force-recreate functions
 curl -i "http://localhost:8000/functions/v1/softone-sync"   # 401 = ΟΚ (όχι 404)
 ```
 
 Functions: `ai-assistant`, `azure-ad-sync`, `mcp`, `notify-ticket`,
 `sharepoint-import-customers`, `sharepoint-sync-worklogs`, `sharepoint-worklogs`,
 `softone-sync`, `support-chat`.
+
+**Περιορισμοί πλήρους αποσύνδεσης από Cloud:**
+- AI: δικό σου OpenAI key (environment ή Admin → AI Bot) ή Gemini key στο panel.
+- Azure sync: Microsoft Graph απευθείας, με tenant credentials και admin consent.
+- SharePoint: οι τρεις υπάρχουσες functions καλούν τον connector gateway του Lovable.
+  Η αντιγραφή τους και ένα `MICROSOFT_SHAREPOINT_API_KEY` **δεν** τις κάνει ανεξάρτητες.
+  Χρειάζεται ξεχωριστή αντικατάσταση με άμεσες Graph κλήσεις πριν δηλωθεί πλήρες self-host.
+- MCP: ο υπάρχων issuer δείχνει στο Cloud, όχι στο VM. Απαιτούνται ξεχωριστή ρύθμιση
+  issuer/OAuth server και δοκιμές MCP· μην υποθέσεις ότι λειτουργεί μόνο με την αντιγραφή.
+- Ειδοποιήσεις: η AI ταξινόμηση χρησιμοποιεί προαιρετικά το Cloud key· χωρίς αυτό
+  υπάρχει τοπικό fallback. Έλεγξε ξεχωριστά τη διαμόρφωση SMTP στο Admin και την αποστολή.
 
 ---
 
@@ -287,7 +395,7 @@ PORT=127.0.0.1:8080                 # το app δεν εκτίθεται δημ�
 DOMAIN=geniusnetsoc.gr
 API_DOMAIN=api.geniusnetsoc.gr
 SUPABASE_API_UPSTREAM=host.docker.internal:8000
-LETSENCRYPT_EMAIL=admin@geniusnetsoc.gr
+LETSENCRYPT_EMAIL=<πραγματικό email επικοινωνίας>
 ```
 
 Σειρά εκκίνησης proxy:
@@ -306,7 +414,8 @@ curl -s  https://api.geniusnetsoc.gr/auth/v1/settings | jq '.external'
 
 ```bash
 cd /opt/portal
-cp .env.docker.example .env && nano .env
+# Αν έτρεξες prepare, το .env είναι ήδη έτοιμο — μην το αντικαταστήσεις.
+nano .env
 chmod +x docker/proxy/init-certbot.sh
 ./docker/proxy/init-certbot.sh
 ```
@@ -346,13 +455,16 @@ https://api.geniusnetsoc.gr/auth/v1/callback
 1. Entra portal → **App registrations → New registration** (Accounts in this organizational directory).
 2. **Authentication → Redirect URI (Web)**: `https://api.geniusnetsoc.gr/auth/v1/callback`
 3. **Certificates & secrets** → New client secret → κράτα το **Value**.
-4. **API permissions (Application)**: `User.Read.All`, `Group.Read.All`, `Device.Read.All`,
-   `Reports.Read.All`, `Organization.Read.All` → **Grant admin consent**.
+4. Για **login**: delegated OIDC scopes `openid`, `profile`, `email` και optional claim
+   `email` όπου χρειάζεται. Τα Application permissions `User.Read.All`, `Group.Read.All`,
+   `Device.Read.All`, `Reports.Read.All`, `Organization.Read.All` αφορούν **ξεχωριστά τον
+   συγχρονισμό** μέσω Graph και απαιτούν **Grant admin consent**, όχι απλώς OAuth login.
 5. Tenant id / client id / secret → `GOTRUE_EXTERNAL_AZURE_*` και στο Admin → **Tenant / Azure AD**
    tab του portal (για user/device/license sync· το secret κρυπτογραφείται με `AZURE_AD_ENC_KEY`).
 
 ```bash
-cd /opt/stack/supabase && docker compose up -d auth
+cd /opt/stack/supabase
+docker compose -f docker-compose.yml -f portal.override.yml up -d --force-recreate auth
 curl -s https://api.geniusnetsoc.gr/auth/v1/settings | jq '.external'
 ```
 
@@ -379,7 +491,7 @@ geniusnetsoc.gr/login ──► api.geniusnetsoc.gr/auth/v1/authorize?provider=g
 | Σύμπτωμα | Διόρθωση |
 |---|---|
 | `redirect_uri_mismatch` (Google) / `AADSTS50011` (Azure) | Ο provider πρέπει να έχει **ακριβώς** `https://api.geniusnetsoc.gr/auth/v1/callback` |
-| `Unsupported provider` | Λείπει `GOTRUE_EXTERNAL_*_ENABLED=true` → `docker compose up -d auth` |
+| `Unsupported provider` | Έλεγξε ENABLED=true **και το override**, έπειτα recreate του auth με τα δύο compose files |
 | Μετά το login γυρνά στο `SITE_URL` αντί για `/login` | Πρόσθεσε το URL στο `ADDITIONAL_REDIRECT_URLS` |
 | Callback με `http://` | Λείπει `API_EXTERNAL_URL=https://...` ή ο proxy δεν στέλνει `X-Forwarded-Proto` |
 | `502 / upstream sent too big header` | Ξαναφόρτωσε τον proxy με το νέο template |
@@ -449,6 +561,11 @@ docker exec supabase-db psql -X -U postgres -d postgres -c \
 | SSO | Login με Google | redirect στο `/portal` |
 | Ρόλοι | Admin panel για `john.zontos@gmail.com` | όλα τα tabs |
 
+Δοκίμασε και Microsoft login, AI απάντηση, ticket creation/read-back, πρόσβαση John σε
+δύο διαφορετικούς πελάτες και περιορισμό απλού χρήστη στη δική του εταιρεία. Ένα HTTP 200
+δεν αποδεικνύει σωστά δικαιώματα. Σε `permission denied` έλεγξε τα GRANTs της συγκεκριμένης
+legacy migration — μη δώσεις δημόσια πρόσβαση για να ξεπεράσεις το σφάλμα.
+
 ---
 
 ## ΒΗΜΑ 11 — Backups
@@ -462,8 +579,27 @@ SH
 sudo chmod +x /etc/cron.daily/portal-backup
 ```
 
-Restore: `docker exec -i supabase-db pg_restore -U postgres -d postgres -c < dump`.
+Restore: μόνο σε ξεχωριστή δοκιμαστική εγκατάσταση πρώτα· το `pg_restore --clean`
+διαγράφει υπάρχοντα αντικείμενα. Μην το τρέξεις τυφλά σε παραγωγή.
 Κράτα και τα volumes storage (`/opt/stack/supabase/volumes/storage`).
+
+Κράτα επίσης τα δύο `.env`, το `portal.override.yml`, τα certificate volumes και την
+έκδοση του upstream stack. Τα backups περιέχουν secrets και προσωπικά δεδομένα:
+χρησιμοποίησε δικαιώματα `600`, κρυπτογράφηση και αντίγραφο εκτός VM.
+
+## Επόμενες ενημερώσεις
+
+```bash
+cd /opt/portal
+# Μετά την ενημέρωση του κώδικα από το repository, πάρε πρώτα backup βάσης/volumes.
+bash scripts/setup-self-host.sh backend
+bash scripts/setup-self-host.sh migrate
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
+bash scripts/setup-self-host.sh check
+```
+
+Μην ξανατρέξεις `prepare` για update και μην ανανεώσεις encryption keys. Οι upstream
+αναβαθμίσεις βάσης/stack γίνονται ξεχωριστά, πρώτα δοκιμαστικά, όχι με τυφλό νέο clone.
 
 ---
 
