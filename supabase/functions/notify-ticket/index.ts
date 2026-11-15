@@ -187,7 +187,7 @@ serve(async (req) => {
       body,
     });
 
-    console.log(`[notify-ticket] ${event} for ticket #${ticket.ticket_number} → dept email: ${dept?.notify_email ?? "none"}`);
+    console.log("[notify-ticket] notification processed", { event });
 
     return new Response(
       JSON.stringify({ ok: true, dept_email: dept?.notify_email ?? null }),
