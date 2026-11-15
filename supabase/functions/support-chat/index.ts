@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { validateSupportMessages } from "./messages.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,9 +50,20 @@ serve(async (req) => {
       });
     }
 
-    const { messages } = await req.json();
-    if (!Array.isArray(messages)) {
-      return new Response(JSON.stringify({ error: "messages array required" }), {
+    let input: unknown;
+    try {
+      input = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid chat messages" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const messages = validateSupportMessages(
+      input && typeof input === "object" && "messages" in input ? input.messages : undefined,
+    );
+    if (!messages) {
+      return new Response(JSON.stringify({ error: "Invalid chat messages" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
