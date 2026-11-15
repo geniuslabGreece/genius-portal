@@ -5,6 +5,7 @@ DB_CONTAINER="${DB_CONTAINER:-supabase-db}"
 DB_USER="${DB_USER:-postgres}"
 DB_NAME="${DB_NAME:-postgres}"
 MIGRATIONS_DIR="${MIGRATIONS_DIR:-supabase/migrations}"
+DRIZZLE_MIGRATIONS_DIR="${DRIZZLE_MIGRATIONS_DIR:-drizzle/migrations}"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Error: docker is not installed or is not available in PATH." >&2
@@ -36,6 +37,10 @@ CREATE TABLE IF NOT EXISTS portal_migrations.applied_migrations (
 SQL
 
 mapfile -t migrations < <(find "$MIGRATIONS_DIR" -maxdepth 1 -type f -name '*.sql' -print | LC_ALL=C sort)
+if [[ -d "$DRIZZLE_MIGRATIONS_DIR" ]]; then
+  mapfile -t custom_migrations < <(find "$DRIZZLE_MIGRATIONS_DIR" -maxdepth 1 -type f -name '*.sql' -print | LC_ALL=C sort)
+  migrations+=("${custom_migrations[@]}")
+fi
 if [[ ${#migrations[@]} -eq 0 ]]; then
   echo "Error: no SQL migrations found in '$MIGRATIONS_DIR'." >&2
   exit 1
