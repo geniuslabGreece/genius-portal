@@ -38,6 +38,31 @@ case "${1:-help}" in
     bash docker/proxy/init-certbot.sh
     portal exec -T proxy nginx -t
     ;;
+  doctor)
+    # Diagnostics only: prints pass/fail, never secret values.
+    ok() { echo "OK   $1"; }; bad() { echo "FAIL $1"; }
+    getv() { grep -E "^$1=" "$2" 2>/dev/null | head -1 | cut -d= -f2- | tr -d "'\""; }
+    for h in geniusnetsoc.gr www.geniusnetsoc.gr api.geniusnetsoc.gr; do
+      [[ -n "$(dig +short "$h" 2>/dev/null)" ]] && ok "DNS $h" || bad "DNS $h"
+    done
+    [[ -f "$STACK_DIR/.env" ]] && ok "backend .env" || bad "backend .env missing"
+    [[ -f "$ROOT/.env" ]] && ok "portal .env" || bad "portal .env missing"
+    [[ -f "$STACK_DIR/portal.override.yml" ]] && ok "portal.override.yml" || bad "portal.override.yml missing (run prepare)"
+    a="$(getv ANON_KEY "$STACK_DIR/.env")"; f="$(getv VITE_SUPABASE_PUBLISHABLE_KEY "$ROOT/.env")"
+    [[ -n "$a" && "$a" == "$f" ]] && ok "ANON_KEY matches portal key" || bad "ANON_KEY != VITE_SUPABASE_PUBLISHABLE_KEY"
+    [[ "$(getv SITE_URL "$STACK_DIR/.env")" == "https://geniusnetsoc.gr" ]] && ok "SITE_URL" || bad "SITE_URL"
+    [[ "$(getv API_EXTERNAL_URL "$STACK_DIR/.env")" == "https://api.geniusnetsoc.gr" ]] && ok "API_EXTERNAL_URL" || bad "API_EXTERNAL_URL"
+    for p in GOOGLE AZURE; do
+      [[ "$(getv GOTRUE_EXTERNAL_${p}_ENABLED "$STACK_DIR/.env")" == true && -n "$(getv GOTRUE_EXTERNAL_${p}_CLIENT_ID "$STACK_DIR/.env")" && -n "$(getv GOTRUE_EXTERNAL_${p}_SECRET "$STACK_DIR/.env")" ]] && ok "$p login configured" || bad "$p login not configured"
+    done
+    [[ -n "$(getv LETSENCRYPT_EMAIL "$ROOT/.env")" ]] && ok "LETSENCRYPT_EMAIL" || bad "LETSENCRYPT_EMAIL"
+    curl -fsS -o /dev/null http://127.0.0.1:8000/auth/v1/health && ok "backend on :8000" || bad "backend on :8000 not responding"
+    if docker ps --format '{{.Names}}' | grep -qx geniusnet-proxy; then
+      docker exec geniusnet-proxy wget -q -O /dev/null "http://host.docker.internal:8000/auth/v1/health" 2>/dev/null \
+        && ok "proxy reaches backend" || bad "proxy cannot reach :8000 (firewall, step 2)"
+    fi
+    docker ps --format '{{.Names}}\t{{.Status}}' | grep -E 'restarting|unhealthy' && bad "containers restarting/unhealthy" || ok "no restarting containers"
+    ;;
   check)
     backend ps
     portal ps
@@ -46,7 +71,7 @@ case "${1:-help}" in
     curl --fail --silent --show-error -o /dev/null https://geniusnetsoc.gr/login
     ;;
   *)
-    echo 'Usage: bash scripts/setup-self-host.sh prepare|backend|migrate|https|check'
+    echo 'Usage: bash scripts/setup-self-host.sh prepare|backend|migrate|https|check|doctor'
     echo 'Order: prepare, edit env/provider credentials, backend, migrate, import reviewed data, https, check.'
     ;;
 esac
