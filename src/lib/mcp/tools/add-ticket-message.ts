@@ -1,13 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
-import { defineTool, type ToolContext } from "@lovable.dev/mcp-js";
+import { supabaseForUser } from "../supabase";
+import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 
-function supabaseForUser(ctx: ToolContext) {
-  return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
 
 export default defineTool({
   name: "add_ticket_message",
@@ -31,10 +25,11 @@ export default defineTool({
 
     let resolvedId = ticket_id;
     if (!resolvedId) {
+      if (!ticket_number) return { content: [{ type: "text", text: "Provide a ticket number." }], isError: true };
       const { data: t, error: tErr } = await supabase
         .from("tickets")
         .select("id")
-        .eq("ticket_number", ticket_number!)
+        .eq("ticket_number", ticket_number)
         .maybeSingle();
       if (tErr) return { content: [{ type: "text", text: tErr.message }], isError: true };
       if (!t) return { content: [{ type: "text", text: "Ticket not found or not accessible." }], isError: true };

@@ -10,6 +10,7 @@ import { signInWithProvider, type OAuthProvider } from "@/portal/auth/oauth";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/portal/auth/AuthContext";
 import { Helmet } from "react-helmet-async";
+import { oauthReturnPath } from "@/lib/oauth-return-path";
 
 const GoogleIcon = () => (
   <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden>
@@ -44,15 +45,15 @@ export default function Login() {
   const [forgotBusy, setForgotBusy] = useState(false);
 
   const POST_LOGIN_KEY = "post_login_target";
-  const getTarget = () => sessionStorage.getItem(POST_LOGIN_KEY) || "/portal";
+  const getTarget = () => oauthReturnPath(sessionStorage.getItem(POST_LOGIN_KEY), "/portal");
   const setTarget = (path: string) => sessionStorage.setItem(POST_LOGIN_KEY, path);
 
   // Prefer ?next=<relative path> (e.g. OAuth consent), otherwise default to /portal
   useEffect(() => {
     const url = new URL(window.location.href);
     const next = url.searchParams.get("next");
-    if (next && next.startsWith("/") && !next.startsWith("//")) {
-      setTarget(next);
+    if (next !== null) {
+      setTarget(oauthReturnPath(next, "/portal"));
     } else if (!sessionStorage.getItem(POST_LOGIN_KEY)) {
       setTarget("/portal");
     }
@@ -85,7 +86,8 @@ export default function Login() {
       return;
     }
     if (result.redirected) return;
-    navigate(getTarget());
+    // AuthContext redirects only after the provider session has been hydrated.
+    setBusy(null);
   };
 
   const handleGoogle = () => startOAuth("google");
@@ -101,7 +103,7 @@ export default function Login() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}${getTarget()}`,
+          emailRedirectTo: new URL(getTarget(), window.location.origin).href,
           data: { full_name: fullName },
         },
       });
@@ -112,7 +114,7 @@ export default function Login() {
         return;
       }
       toast.success("Λογαριασμός δημιουργήθηκε", {
-        description: "Συνδεθείτε για να συνεχίσετε.",
+        description: "Επιβεβαιώστε το email σας από τον σύνδεσμο που σας στείλαμε και συνδεθείτε για να συνεχίσετε.",
       });
       setMode("signin");
       setBusy(null);

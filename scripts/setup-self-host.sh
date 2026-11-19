@@ -16,9 +16,10 @@ case "${1:-help}" in
   backend)
     [[ -f "$STACK_DIR/portal.override.yml" ]] || { echo 'Run prepare first.' >&2; exit 1; }
     backend config --quiet
-    # Keep the upstream main router. MCP still requires separate issuer configuration.
+    # Never copy a Cloud-generated MCP bundle to the VM; export it with mcp-stage.
     for directory in supabase/functions/*; do
       [[ -d "$directory" ]] || continue
+      [[ "$(basename "$directory")" != mcp ]] || continue
       cp -R "$directory" "$STACK_DIR/volumes/functions/"
     done
     backend pull
@@ -33,6 +34,12 @@ case "${1:-help}" in
     ;;
   migrate)
     bash scripts/apply-self-hosted-migrations.sh
+    ;;
+  mcp-stage)
+    python3 scripts/stage-vm-mcp.py
+    ;;
+  mcp-check)
+    python3 scripts/check-vm-mcp.py
     ;;
   https)
     bash docker/proxy/init-certbot.sh
@@ -71,7 +78,7 @@ case "${1:-help}" in
     curl --fail --silent --show-error -o /dev/null https://geniusnetsoc.gr/login
     ;;
   *)
-    echo 'Usage: bash scripts/setup-self-host.sh prepare|backend|migrate|https|check|doctor'
+    echo 'Usage: bash scripts/setup-self-host.sh prepare|backend|migrate|https|check|doctor|mcp-stage|mcp-check'
     echo 'Order: prepare, edit env/provider credentials, backend, migrate, import reviewed data, https, check.'
     ;;
 esac

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { ShieldCheck, Loader2, ExternalLink } from "lucide-react";
+import { oauthReturnPath } from "@/lib/oauth-return-path";
 
 // Typed shim for the beta supabase.auth.oauth namespace.
 type OAuthDetails = {
@@ -21,9 +22,7 @@ type OAuthApi = {
 };
 const oauthApi = (supabase.auth as unknown as { oauth: OAuthApi }).oauth;
 
-function isSafeRelative(p: string) {
-  return p.startsWith("/") && !p.startsWith("//");
-}
+function isSafeRelative(p: string) { return oauthReturnPath(p, "") !== ""; }
 
 export default function OAuthConsent() {
   const [params] = useSearchParams();
@@ -35,13 +34,14 @@ export default function OAuthConsent() {
   useEffect(() => {
     let active = true;
     (async () => {
+      try {
       if (!authorizationId) {
         setError("Λείπει το authorization_id.");
         return;
       }
       const { data: sess } = await supabase.auth.getSession();
       if (!sess.session) {
-        const next = window.location.pathname + window.location.search;
+        const next = window.location.pathname + window.location.search + window.location.hash;
         window.location.href = "/login?next=" + encodeURIComponent(next);
         return;
       }
@@ -56,7 +56,11 @@ export default function OAuthConsent() {
         window.location.href = immediate;
         return;
       }
+      if (!data) { setError("Το αίτημα σύνδεσης δεν είναι διαθέσιμο ή έχει λήξει."); return; }
       setDetails(data);
+      } catch {
+        if (active) setError("Δεν ήταν δυνατή η επικοινωνία με την υπηρεσία σύνδεσης. Δοκιμάστε ξανά.");
+      }
     })();
     return () => {
       active = false;
@@ -65,6 +69,7 @@ export default function OAuthConsent() {
 
   async function decide(approve: boolean) {
     setBusy(approve ? "approve" : "deny");
+    try {
     const { data, error: err } = approve
       ? await oauthApi.approveAuthorization(authorizationId)
       : await oauthApi.denyAuthorization(authorizationId);
@@ -80,6 +85,10 @@ export default function OAuthConsent() {
       return;
     }
     window.location.href = target;
+    } catch {
+      setBusy(null);
+      setError("Η απόφαση δεν ολοκληρώθηκε. Ξεκινήστε ξανά τη σύνδεση από την εφαρμογή σας.");
+    }
   }
 
   if (error) {
@@ -125,7 +134,7 @@ export default function OAuthConsent() {
           <p className="font-medium">Τι θα μπορεί να κάνει η {clientName}:</p>
           <ul className="ml-4 list-disc text-muted-foreground">
             <li>Να καλεί τα διαθέσιμα MCP tools του portal εκ μέρους σας, με βάση τα δικαιώματα που ήδη έχετε.</li>
-            <li>Να διαβάζει μόνο δεδομένα της δικής σας εταιρείας (Row Level Security).</li>
+            <li>Να διαβάζει τα δεδομένα που επιτρέπονται ήδη στον λογαριασμό σας, μαζί με την πρόσβαση διαχειριστή αν υπάρχει.</li>
           </ul>
           {scopes.length > 0 && (
             <p className="pt-2 text-xs text-muted-foreground">

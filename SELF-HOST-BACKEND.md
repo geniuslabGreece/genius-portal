@@ -333,5 +333,5 @@ docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
 ### Γνωστοί περιορισμοί εκτός Cloud
 - **SharePoint** (δελτία, εισαγωγή πελατών) χρησιμοποιεί ακόμα τον connector του Lovable — δεν
   δουλεύει στο VM χωρίς ξεχωριστή αλλαγή σε άμεσες κλήσεις Microsoft Graph.
-- **MCP** (σύνδεση agents) θέλει ξεχωριστή ρύθμιση OAuth για το VM.
+- **MCP** (σύνδεση agents): βήμα-βήμα στο [SELF-HOST-MCP.md](SELF-HOST-MCP.md), με ξεχωριστό VM issuer, staged bundle και `mcp-check`. Απαιτεί συμβατή έκδοση Auth, ενεργό asymmetric signing και route-specific εξαίρεση στο functions router· δεν ενεργοποιείται αυτόματα.
 - AI, Azure AD/Copilot sync, SoftOne, tickets, ειδοποιήσεις: δουλεύουν με δικά σου κλειδιά.

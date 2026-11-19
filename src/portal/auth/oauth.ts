@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
+import { isManagedAuthUrl } from "@/lib/oauth-return-path";
 
 export type OAuthProvider = "google" | "azure" | "apple";
 
@@ -10,13 +11,7 @@ const SUPABASE_URL: string = import.meta.env.VITE_SUPABASE_URL ?? "";
  * είναι το managed *.supabase.co. Σε self-hosted VM (π.χ. https://api.geniusnetsoc.gr)
  * πρέπει να πάμε απευθείας από τον supabase-js client στο GoTrue του VM.
  */
-export const isManagedCloud = (() => {
-  try {
-    return new URL(SUPABASE_URL).hostname.endsWith(".supabase.co");
-  } catch {
-    return false;
-  }
-})();
+export const isManagedCloud = isManagedAuthUrl(SUPABASE_URL);
 
 interface Result {
   error?: { message: string } | null;

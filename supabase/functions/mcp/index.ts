@@ -2,19 +2,47 @@
 // To take ownership, delete this banner line; the plugin then leaves the file alone.
 // supabase function: mcp
 // Bundled from src/lib/mcp/index.ts by @lovable.dev/mcp-js.
+// <define:import.meta.env>
+var define_import_meta_env_default = { VITE_SUPABASE_PROJECT_ID: "osshbsfuqawrljizeruq", VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_eCTih28CyU86x6oLcWNoIA_VbdI30wE", VITE_SUPABASE_URL: "https://osshbsfuqawrljizeruq.supabase.co", VITE_SUPABASE_ANON_KEY: "sb_publishable_eCTih28CyU86x6oLcWNoIA_VbdI30wE", MODE: "production", BASE_URL: "/", DEV: false, PROD: true, SSR: false };
+
 // src/lib/mcp/index.ts
 import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.1";
 
-// src/lib/mcp/tools/get-my-contracts.ts
+// src/lib/mcp/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@^2.103.3";
-import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.1";
-import { z } from "npm:zod@^3.25.76";
+function env(key) {
+  const runtime = globalThis;
+  return runtime.Deno?.env?.get(key) ?? runtime.process?.env?.[key];
+}
+function publicKey() {
+  const direct = env("SUPABASE_PUBLISHABLE_KEY");
+  if (direct) return direct;
+  try {
+    const keys = JSON.parse(env("SUPABASE_PUBLISHABLE_KEYS") || "{}");
+    if (keys && typeof keys === "object") {
+      const key = Object.values(keys).find((value) => typeof value === "string" && value.startsWith("sb_publishable_"));
+      if (key) return key;
+    }
+  } catch {
+  }
+  const legacy = env("SUPABASE_ANON_KEY");
+  if (!legacy) throw new Error("MCP public database key is not configured.");
+  return legacy;
+}
 function supabaseForUser(ctx) {
-  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
+  const token = ctx.getToken();
+  if (!token) throw new Error("A verified OAuth token is required.");
+  const url = env("SUPABASE_URL");
+  if (!url) throw new Error("MCP database URL is not configured.");
+  return createClient(url, publicKey(), {
+    global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false }
   });
 }
+
+// src/lib/mcp/tools/get-my-contracts.ts
+import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.1";
+import { z } from "npm:zod@^3.25.76";
 var get_my_contracts_default = defineTool({
   name: "get_my_contracts",
   title: "Get my contracts",
@@ -46,14 +74,7 @@ var get_my_contracts_default = defineTool({
 });
 
 // src/lib/mcp/tools/get-my-devices.ts
-import { createClient as createClient2 } from "npm:@supabase/supabase-js@^2.103.3";
 import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.20.1";
-function supabaseForUser2(ctx) {
-  return createClient2(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-}
 var get_my_devices_default = defineTool2({
   name: "get_my_devices",
   title: "Get my Azure AD devices",
@@ -64,7 +85,7 @@ var get_my_devices_default = defineTool2({
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
-    const supabase = supabaseForUser2(ctx);
+    const supabase = supabaseForUser(ctx);
     const { data, error } = await supabase.from("customer_azure_ad_devices").select(
       "display_name, operating_system, operating_system_version, join_type, is_compliant, approximate_last_sign_in, account_enabled"
     ).order("display_name").limit(500);
@@ -77,14 +98,7 @@ var get_my_devices_default = defineTool2({
 });
 
 // src/lib/mcp/tools/get-my-licenses.ts
-import { createClient as createClient3 } from "npm:@supabase/supabase-js@^2.103.3";
 import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.20.1";
-function supabaseForUser3(ctx) {
-  return createClient3(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-}
 var get_my_licenses_default = defineTool3({
   name: "get_my_licenses",
   title: "Get my Microsoft 365 licenses",
@@ -95,7 +109,7 @@ var get_my_licenses_default = defineTool3({
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
-    const supabase = supabaseForUser3(ctx);
+    const supabase = supabaseForUser(ctx);
     const { data, error } = await supabase.from("customer_azure_ad_licenses").select("display_name, sku_part_number, prepaid_enabled, consumed_units, capability_status").order("display_name").limit(200);
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {
@@ -106,15 +120,8 @@ var get_my_licenses_default = defineTool3({
 });
 
 // src/lib/mcp/tools/get-my-tickets.ts
-import { createClient as createClient4 } from "npm:@supabase/supabase-js@^2.103.3";
 import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z2 } from "npm:zod@^3.25.76";
-function supabaseForUser4(ctx) {
-  return createClient4(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-}
 var get_my_tickets_default = defineTool4({
   name: "get_my_tickets",
   title: "Get my support tickets",
@@ -127,7 +134,7 @@ var get_my_tickets_default = defineTool4({
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
-    const supabase = supabaseForUser4(ctx);
+    const supabase = supabaseForUser(ctx);
     let q = supabase.from("tickets").select("ticket_number, subject, status, priority, department, created_at, resolved_at").order("created_at", { ascending: false }).limit(100);
     if (status === "open") q = q.neq("status", "resolved");
     const { data, error } = await q;
@@ -140,14 +147,7 @@ var get_my_tickets_default = defineTool4({
 });
 
 // src/lib/mcp/tools/get-copilot-usage.ts
-import { createClient as createClient5 } from "npm:@supabase/supabase-js@^2.103.3";
 import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.20.1";
-function supabaseForUser5(ctx) {
-  return createClient5(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-}
 var get_copilot_usage_default = defineTool5({
   name: "get_copilot_usage",
   title: "Get Microsoft 365 Copilot usage",
@@ -158,7 +158,7 @@ var get_copilot_usage_default = defineTool5({
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
-    const supabase = supabaseForUser5(ctx);
+    const supabase = supabaseForUser(ctx);
     const { data, error } = await supabase.from("customer_copilot_usage").select(
       "user_principal_name, display_name, assigned_sku, has_assigned_license, last_activity_date, copilot_chat_last_activity, microsoft_teams_copilot_last_activity, word_copilot_last_activity, excel_copilot_last_activity, powerpoint_copilot_last_activity, outlook_copilot_last_activity"
     ).order("user_principal_name").limit(500);
@@ -171,15 +171,8 @@ var get_copilot_usage_default = defineTool5({
 });
 
 // src/lib/mcp/tools/create-ticket.ts
-import { createClient as createClient6 } from "npm:@supabase/supabase-js@^2.103.3";
 import { defineTool as defineTool6 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z3 } from "npm:zod@^3.25.76";
-function supabaseForUser6(ctx) {
-  return createClient6(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-}
 var create_ticket_default = defineTool6({
   name: "create_ticket",
   title: "Create support ticket",
@@ -195,7 +188,7 @@ var create_ticket_default = defineTool6({
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
-    const supabase = supabaseForUser6(ctx);
+    const supabase = supabaseForUser(ctx);
     const userId = ctx.getUserId();
     const { data: profile, error: profErr } = await supabase.from("profiles").select("customer_id").eq("id", userId).maybeSingle();
     if (profErr) return { content: [{ type: "text", text: profErr.message }], isError: true };
@@ -222,15 +215,8 @@ var create_ticket_default = defineTool6({
 });
 
 // src/lib/mcp/tools/add-ticket-message.ts
-import { createClient as createClient7 } from "npm:@supabase/supabase-js@^2.103.3";
 import { defineTool as defineTool7 } from "npm:@lovable.dev/mcp-js@0.20.1";
 import { z as z4 } from "npm:zod@^3.25.76";
-function supabaseForUser7(ctx) {
-  return createClient7(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-}
 var add_ticket_message_default = defineTool7({
   name: "add_ticket_message",
   title: "Add reply to a ticket",
@@ -248,9 +234,10 @@ var add_ticket_message_default = defineTool7({
     if (!ticket_id && !ticket_number) {
       return { content: [{ type: "text", text: "Provide ticket_id or ticket_number." }], isError: true };
     }
-    const supabase = supabaseForUser7(ctx);
+    const supabase = supabaseForUser(ctx);
     let resolvedId = ticket_id;
     if (!resolvedId) {
+      if (!ticket_number) return { content: [{ type: "text", text: "Provide a ticket number." }], isError: true };
       const { data: t, error: tErr } = await supabase.from("tickets").select("id").eq("ticket_number", ticket_number).maybeSingle();
       if (tErr) return { content: [{ type: "text", text: tErr.message }], isError: true };
       if (!t) return { content: [{ type: "text", text: "Ticket not found or not accessible." }], isError: true };
@@ -271,16 +258,30 @@ var add_ticket_message_default = defineTool7({
   }
 });
 
+// src/lib/mcp/config.ts
+function mcpIssuer(explicit, projectRef2) {
+  if (explicit?.trim()) {
+    const url = new URL(explicit.trim());
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
+      throw new Error("MCP issuer must be an HTTPS issuer URL without credentials, query or fragment.");
+    }
+    return url.href.replace(/\/$/, "");
+  }
+  if (projectRef2 === "selfhosted") throw new Error("Set VITE_MCP_OAUTH_ISSUER for the VM before building.");
+  return `https://${projectRef2 || "project-ref-unset"}.supabase.co/auth/v1`;
+}
+
 // src/lib/mcp/index.ts
 var projectRef = "osshbsfuqawrljizeruq";
 var mcp_default = defineMcp({
-  name: "geniusnet-portal-mcp",
-  title: "GeniusNet Customer Portal",
+  name: "socportal",
+  title: "SocPortal",
   version: "0.1.0",
   instructions: "Access to the signed-in customer's GeniusNet portal data: contracts, Azure AD devices, Microsoft 365 licenses, Microsoft 365 Copilot usage and support tickets. Also supports creating new support tickets and posting replies. All tools run as the signed-in user under Row Level Security, so results and writes are always scoped to that user's company.",
   auth: auth.oauth.issuer({
-    issuer: `https://${projectRef}.supabase.co/auth/v1`,
-    acceptedAudiences: "authenticated"
+    issuer: mcpIssuer(define_import_meta_env_default.VITE_MCP_OAUTH_ISSUER, projectRef),
+    acceptedAudiences: "authenticated",
+    requireOAuthClientClaim: true
   }),
   tools: [
     get_my_contracts_default,
