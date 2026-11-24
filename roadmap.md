@@ -5,6 +5,6 @@
 - [x] Test env generation and migration discovery locally; real containers/OAuth require the user's VM and credentials.
 
 # Login and VM agent connections
-- [ ] Check Google/Microsoft login and registration return paths and fix identified defects.
-- [ ] Add separate VM MCP issuer configuration, staging instructions and automated checks.
+- [x] Check Google/Microsoft login and registration return paths and fix identified defects.
+- [x] Add separate VM MCP issuer configuration, staging instructions and automated checks.
 - [ ] Verify agent connection on the real VM (blocked: API health and OAuth discovery return HTTP 502).
