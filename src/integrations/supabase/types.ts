@@ -551,6 +551,41 @@ export type Database = {
           },
         ]
       }
+      customer_watchguard_settings: {
+        Row: {
+          credentials_enc: string
+          customer_id: string
+          last_test_at: string | null
+          last_test_ok: boolean | null
+          region: string
+          updated_at: string
+        }
+        Insert: {
+          credentials_enc: string
+          customer_id: string
+          last_test_at?: string | null
+          last_test_ok?: boolean | null
+          region?: string
+          updated_at?: string
+        }
+        Update: {
+          credentials_enc?: string
+          customer_id?: string
+          last_test_at?: string | null
+          last_test_ok?: boolean | null
+          region?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_watchguard_settings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           account_manager_email: string | null
